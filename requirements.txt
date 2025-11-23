@@ -1,0 +1,19 @@
+# Image Colorization Extension for Needle Framework
+# Requirements file for Python dependencies
+
+# Core scientific computing
+numpy>=1.21.0
+
+# Visualization (for demo notebook)
+matplotlib>=3.3.0
+
+# Jupyter notebook support (for demo)
+jupyter>=1.0.0
+notebook>=6.4.0
+
+# Python bindings for C++ backend
+pybind11>=2.6.0
+
+# Optional: for better notebook experience
+ipywidgets>=7.6.0
+

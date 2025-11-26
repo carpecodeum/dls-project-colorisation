@@ -1,0 +1,3 @@
+/Users/adityabhatnagar/dls-proj/build/CMakeFiles/ndarray_backend_cpu.dir
+/Users/adityabhatnagar/dls-proj/build/CMakeFiles/edit_cache.dir
+/Users/adityabhatnagar/dls-proj/build/CMakeFiles/rebuild_cache.dir

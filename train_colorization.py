@@ -71,10 +71,13 @@ def create_dataloaders(config):
     print(f"Training samples: {len(train_color_dataset)}")
     print(f"Test samples: {len(test_color_dataset)}")
     
-    return train_loader, test_loader
+    train_steps = (len(train_color_dataset) + config.batch_size - 1) // config.batch_size
+    test_steps = (len(test_color_dataset) + config.batch_size - 1) // config.batch_size
+    
+    return train_loader, test_loader, train_steps, test_steps
 
 
-def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch):
+def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch, steps_per_epoch):
     """Train for one epoch."""
     model.train()
     total_loss = 0
@@ -104,11 +107,11 @@ def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch):
         total_loss += loss.numpy()
         num_batches += 1
         
-        if (batch_idx + 1) % config.log_every == 0:
+        if (batch_idx + 1) % config.log_every == 0 or (batch_idx + 1) == steps_per_epoch:
             avg_loss = total_loss / num_batches
             elapsed = time.time() - start_time
             print(f"Epoch [{epoch+1}/{config.num_epochs}] "
-                  f"Batch [{batch_idx+1}/{len(train_loader)}] "
+                  f"Batch [{batch_idx+1}/{steps_per_epoch}] "
                   f"Loss: {avg_loss:.4f} "
                   f"Time: {elapsed:.2f}s")
     
@@ -116,7 +119,7 @@ def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch):
     return avg_loss
 
 
-def evaluate(model, test_loader, loss_fn, config):
+def evaluate(model, test_loader, loss_fn, config, steps_per_epoch):
     """Evaluate on test set."""
     model.eval()
     total_loss = 0
@@ -176,7 +179,7 @@ def main():
     print("=" * 80)
     
     # Create dataloaders
-    train_loader, test_loader = create_dataloaders(config)
+    train_loader, test_loader, train_steps, test_steps = create_dataloaders(config)
     
     # Create model
     print("\nInitializing colorization model...")
@@ -209,11 +212,11 @@ def main():
         print("-" * 80)
         
         # Train
-        train_loss = train_epoch(model, train_loader, loss_fn, optimizer, config, epoch)
+        train_loss = train_epoch(model, train_loader, loss_fn, optimizer, config, epoch, train_steps)
         print(f"Train Loss: {train_loss:.4f}")
         
         # Evaluate
-        val_loss = evaluate(model, test_loader, loss_fn, config)
+        val_loss = evaluate(model, test_loader, loss_fn, config, test_steps)
         print(f"Val Loss: {val_loss:.4f}")
         
         # Save checkpoint

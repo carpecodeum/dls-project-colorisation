@@ -124,7 +124,7 @@ def evaluate_and_visualize(checkpoint_path="./checkpoints/colorization_epoch_20.
     
     # Load test data
     test_dataset = CIFAR10Dataset(data_dir, train=False)
-    color_dataset = ColorizationDataset(test_dataset, augment=False, return_rgb=True)
+    color_dataset = ColorizationDataset(test_dataset, augmentation=None, return_rgb=True)
     
     # Collect samples
     print(f"\nEvaluating on {num_samples} samples...")

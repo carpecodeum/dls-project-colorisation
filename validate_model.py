@@ -122,7 +122,7 @@ class ValidationSuite:
         # Test 3: Colorization dataset
         print("\n[3/5] Testing colorization dataset...")
         try:
-            color_ds = ColorizationDataset(test_ds, augment=False, return_rgb=False)
+            color_ds = ColorizationDataset(test_ds, augmentation=None, return_rgb=False)
             gray, ab = color_ds[0]
             assert gray.shape == (1, 32, 32), f"Wrong gray shape: {gray.shape}"
             assert ab.shape == (2, 32, 32), f"Wrong ab shape: {ab.shape}"
@@ -198,7 +198,7 @@ class ValidationSuite:
         
         # Load test data
         test_ds = CIFAR10Dataset(self.data_dir, train=False)
-        color_ds = ColorizationDataset(test_ds, augment=False, return_rgb=True)
+        color_ds = ColorizationDataset(test_ds, augmentation=None, return_rgb=True)
         
         # Evaluate
         print(f"\nEvaluating on {num_samples} samples...")

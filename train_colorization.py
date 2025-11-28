@@ -108,14 +108,14 @@ def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch, steps_pe
         num_batches += 1
         
         if (batch_idx + 1) % config.log_every == 0 or (batch_idx + 1) == steps_per_epoch:
-            avg_loss = total_loss / num_batches
+            avg_loss = float(total_loss / num_batches)
             elapsed = time.time() - start_time
             print(f"Epoch [{epoch+1}/{config.num_epochs}] "
                   f"Batch [{batch_idx+1}/{steps_per_epoch}] "
                   f"Loss: {avg_loss:.4f} "
                   f"Time: {elapsed:.2f}s")
     
-    avg_loss = total_loss / num_batches
+    avg_loss = float(total_loss / num_batches)
     return avg_loss
 
 

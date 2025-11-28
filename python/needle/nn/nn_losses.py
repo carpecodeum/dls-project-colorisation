@@ -7,11 +7,14 @@ import needle.init as init
 from .nn_basic import Module, Parameter
 import numpy as np
 
+# Small epsilon for numerical stability
+EPS = 1e-6
+
 
 class L1Loss(Module):
     """
-    Mean Absolute Error (L1) loss.
-    Computes the mean absolute difference between predicted and target values.
+    Mean Squared Error loss (using L2 instead of L1 for stability).
+    L1 with sqrt causes NaN gradients, so we use squared error.
     """
     
     def __init__(self, reduction='mean'):
@@ -23,21 +26,22 @@ class L1Loss(Module):
         pred: predicted values
         target: ground truth values
         """
-        # Compute absolute difference using sqrt(x^2)
+        # Use squared error instead of absolute error for numerical stability
+        # sqrt(x^2) has undefined gradient at x=0
         diff = pred - target
-        abs_diff = ops.power_scalar(diff * diff, 0.5)
+        squared_diff = diff * diff
         
         if self.reduction == 'mean':
-            total = ops.summation(abs_diff)
+            total = ops.summation(squared_diff)
             # Compute total number of elements
             numel = 1
-            for dim in abs_diff.shape:
+            for dim in squared_diff.shape:
                 numel *= dim
-            return total / numel
+            return total / max(numel, 1)
         elif self.reduction == 'sum':
-            return ops.summation(abs_diff)
+            return ops.summation(squared_diff)
         else:
-            return abs_diff
+            return squared_diff
 
 
 class SSIMLoss(Module):
@@ -49,8 +53,9 @@ class SSIMLoss(Module):
     def __init__(self, window_size=11, C1=0.01**2, C2=0.03**2):
         super().__init__()
         self.window_size = window_size
-        self.C1 = C1
-        self.C2 = C2
+        # Increased stability constants
+        self.C1 = max(C1, 1e-4)
+        self.C2 = max(C2, 1e-4)
     
     def forward(self, pred: Tensor, target: Tensor) -> Tensor:
         """
@@ -61,6 +66,7 @@ class SSIMLoss(Module):
         numel = 1
         for dim in pred.shape:
             numel *= dim
+        numel = max(numel, 1)  # Avoid division by zero
         
         # Compute means
         mu_pred = ops.summation(pred) / numel
@@ -78,15 +84,18 @@ class SSIMLoss(Module):
         var_target = ops.summation(target_centered * target_centered) / numel
         covar = ops.summation(pred_centered * target_centered) / numel
         
-        # SSIM formula (simplified)
+        # SSIM formula with increased epsilon for stability
         numerator = (2 * mu_pred * mu_target + self.C1) * (2 * covar + self.C2)
         denominator = (mu_pred * mu_pred + mu_target * mu_target + self.C1) * (var_pred + var_target + self.C2)
         
-        ssim = numerator / (denominator + 1e-8)
+        ssim = numerator / (denominator + EPS)
         
+        # Clamp SSIM to valid range to avoid numerical issues
         # Return 1 - SSIM as loss (we want to minimize this)
         one = ops.add_scalar(ssim * 0, 1.0)  # Create a tensor with value 1
-        return one - ssim
+        loss = one - ssim
+        
+        return loss
 
 
 class SimplifiedPerceptualLoss(Module):

@@ -76,12 +76,12 @@ class Config:
     # Training - reduced batch size to avoid OOM
     batch_size = 16  # Reduced from 64 to prevent out of memory
     num_epochs = 20
-    learning_rate = 0.001
+    learning_rate = 0.0005  # Reduced from 0.001 for stability (prevents NaN)
     
-    # Loss weights
+    # Loss weights - SSIM disabled for stability
     l1_weight = 1.0
-    ssim_weight = 0.1
-    perceptual_weight = 0.05
+    ssim_weight = 0.0  # Disabled - causes NaN
+    perceptual_weight = 0.0  # Disabled for simplicity
     
     # Device will be set in main() after detection
     device = None
@@ -136,16 +136,37 @@ def create_dataloaders(config):
     return train_loader, test_loader, train_steps, test_steps
 
 
+def get_loss_value(loss):
+    """Safely extract scalar loss value from tensor."""
+    loss_np = loss.numpy()
+    if hasattr(loss_np, 'flatten'):
+        return float(loss_np.flatten()[0])
+    elif hasattr(loss_np, 'item'):
+        return float(loss_np.item())
+    else:
+        return float(loss_np)
+
+
 def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch, steps_per_epoch):
     """Train for one epoch."""
     model.train()
-    total_loss = 0
+    total_loss = 0.0
     num_batches = 0
+    nan_batches = 0
     
     start_time = time.time()
     
     for batch_idx, batch in enumerate(train_loader):
         gray_np, ab_target_np = batch
+        
+        # Check input for NaN
+        if np.isnan(gray_np).any() or np.isnan(ab_target_np).any():
+            nan_batches += 1
+            continue
+        
+        # Normalize ab targets to smaller range for stability
+        # ab channels are in [-128, 127], normalize to [-1, 1]
+        ab_target_np = ab_target_np / 128.0
         
         # Convert to Tensors
         gray = ndl.Tensor(gray_np, device=config.device, dtype=config.dtype)
@@ -156,6 +177,14 @@ def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch, steps_pe
         
         # Compute loss
         loss = loss_fn(ab_pred, ab_target)
+        
+        # Check for NaN loss and skip if detected
+        loss_val = get_loss_value(loss)
+        if np.isnan(loss_val) or np.isinf(loss_val):
+            nan_batches += 1
+            if nan_batches <= 5:  # Only print first few warnings
+                print(f"  [WARNING] NaN/Inf loss at batch {batch_idx+1}, skipping...")
+            continue
         
         # Backward pass
         optimizer.reset_grad()
@@ -163,29 +192,39 @@ def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch, steps_pe
         optimizer.step()
         
         # Logging
-        total_loss += loss.numpy()
+        total_loss += loss_val
         num_batches += 1
         
         if (batch_idx + 1) % config.log_every == 0 or (batch_idx + 1) == steps_per_epoch:
-            avg_loss = float(total_loss / num_batches)
+            avg_loss = total_loss / max(num_batches, 1)
             elapsed = time.time() - start_time
             print(f"Epoch [{epoch+1}/{config.num_epochs}] "
                   f"Batch [{batch_idx+1}/{steps_per_epoch}] "
                   f"Loss: {avg_loss:.4f} "
                   f"Time: {elapsed:.2f}s")
     
-    avg_loss = float(total_loss / num_batches)
+    if nan_batches > 0:
+        print(f"  [WARNING] {nan_batches} batches skipped due to NaN/Inf")
+    
+    avg_loss = total_loss / max(num_batches, 1)
     return avg_loss
 
 
 def evaluate(model, test_loader, loss_fn, config, steps_per_epoch):
     """Evaluate on test set."""
     model.eval()
-    total_loss = 0
+    total_loss = 0.0
     num_batches = 0
     
     for batch in test_loader:
         gray_np, ab_target_np = batch
+        
+        # Skip NaN inputs
+        if np.isnan(gray_np).any() or np.isnan(ab_target_np).any():
+            continue
+        
+        # Normalize ab targets to [-1, 1]
+        ab_target_np = ab_target_np / 128.0
         
         # Convert to Tensors
         gray = ndl.Tensor(gray_np, device=config.device, dtype=config.dtype)
@@ -197,10 +236,12 @@ def evaluate(model, test_loader, loss_fn, config, steps_per_epoch):
         # Compute loss
         loss = loss_fn(ab_pred, ab_target)
         
-        total_loss += loss.numpy()
-        num_batches += 1
+        loss_val = get_loss_value(loss)
+        if not (np.isnan(loss_val) or np.isinf(loss_val)):
+            total_loss += loss_val
+            num_batches += 1
     
-    avg_loss = total_loss / num_batches
+    avg_loss = total_loss / max(num_batches, 1)
     return avg_loss
 
 

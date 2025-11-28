@@ -52,8 +52,8 @@ def create_dataloaders(config):
     )
     
     # Wrap with colorization dataset
-    train_color_dataset = ndl.data.ColorizationDataset(train_dataset)
-    test_color_dataset = ndl.data.ColorizationDataset(test_dataset)
+    train_color_dataset = ndl.data.ColorizationDataset(train_dataset, return_rgb=False)
+    test_color_dataset = ndl.data.ColorizationDataset(test_dataset, return_rgb=False)
     
     # Create dataloaders
     train_loader = ndl.data.DataLoader(

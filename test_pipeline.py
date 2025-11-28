@@ -24,7 +24,7 @@ except Exception as e:
 # Test 2: Colorization dataset
 print("\n2. Testing colorization dataset wrapper...")
 try:
-    color_dataset = ndl.data.ColorizationDataset(train_dataset)
+    color_dataset = ndl.data.ColorizationDataset(train_dataset, return_rgb=False)
     gray, ab = color_dataset[0]
     assert gray.shape == (1, 32, 32), f"Expected gray shape (1, 32, 32), got {gray.shape}"
     assert ab.shape == (2, 32, 32), f"Expected ab shape (2, 32, 32), got {ab.shape}"

@@ -9,6 +9,65 @@ import numpy as np
 import time
 import os
 
+
+def check_cuda_available():
+    """
+    Check if CUDA/GPU is available for Needle.
+    Returns (device, device_name, details)
+    """
+    details = []
+    
+    # Check 1: Does ndl.cuda exist?
+    if not hasattr(ndl, 'cuda'):
+        details.append("✗ ndl.cuda() not available (CUDA backend not compiled)")
+        return ndl.cpu(), "CPU", details
+    
+    details.append("✓ ndl.cuda() function exists")
+    
+    # Check 2: Can we create a CUDA device?
+    try:
+        cuda_device = ndl.cuda()
+        details.append("✓ CUDA device created")
+    except Exception as e:
+        details.append(f"✗ Failed to create CUDA device: {e}")
+        return ndl.cpu(), "CPU", details
+    
+    # Check 3: Can we allocate a tensor on GPU?
+    try:
+        test_tensor = ndl.Tensor([1.0, 2.0, 3.0], device=cuda_device)
+        details.append("✓ Tensor allocation on GPU successful")
+    except Exception as e:
+        details.append(f"✗ Failed to allocate tensor on GPU: {e}")
+        return ndl.cpu(), "CPU", details
+    
+    # Check 4: Can we run operations?
+    try:
+        result = test_tensor + test_tensor
+        _ = result.numpy()
+        details.append("✓ GPU computation successful")
+    except Exception as e:
+        details.append(f"✗ GPU computation failed: {e}")
+        return ndl.cpu(), "CPU", details
+    
+    return cuda_device, "CUDA/GPU", details
+
+
+def print_device_info():
+    """Print device detection results."""
+    device, device_name, details = check_cuda_available()
+    
+    print("=" * 60)
+    print("DEVICE DETECTION")
+    print("=" * 60)
+    for detail in details:
+        print(f"  {detail}")
+    print("-" * 60)
+    print(f"  Selected device: {device_name}")
+    print("=" * 60)
+    
+    return device
+
+
 # Configuration
 class Config:
     # Dataset
@@ -24,12 +83,8 @@ class Config:
     ssim_weight = 0.1
     perceptual_weight = 0.05
     
-    # Device selection (prefer GPU if available)
-    try:
-        device = ndl.cuda()
-        _ = ndl.Tensor([0], device=device)  # simple check
-    except Exception:
-        device = ndl.cpu()
+    # Device will be set in main() after detection
+    device = None
     dtype = "float32"
     
     # Checkpoints
@@ -177,9 +232,14 @@ def main():
     print("=" * 80)
     print("Image Colorization Training")
     print("=" * 80)
-    print(f"Batch size: {config.batch_size}")
-    print(f"Epochs: {config.num_epochs}")
-    print(f"Learning rate: {config.learning_rate}")
+    
+    # Detect and select device (GPU if available, else CPU)
+    config.device = print_device_info()
+    
+    print(f"\nTraining Configuration:")
+    print(f"  Batch size: {config.batch_size}")
+    print(f"  Epochs: {config.num_epochs}")
+    print(f"  Learning rate: {config.learning_rate}")
     print("=" * 80)
     
     # Create dataloaders

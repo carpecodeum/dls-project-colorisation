@@ -159,6 +159,12 @@ def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch, steps_pe
     for batch_idx, batch in enumerate(train_loader):
         gray_np, ab_target_np = batch
         
+        # Convert to numpy if needed
+        if hasattr(gray_np, 'numpy'):
+            gray_np = gray_np.numpy()
+        if hasattr(ab_target_np, 'numpy'):
+            ab_target_np = ab_target_np.numpy()
+        
         # Check input for NaN
         if np.isnan(gray_np).any() or np.isnan(ab_target_np).any():
             nan_batches += 1
@@ -218,6 +224,12 @@ def evaluate(model, test_loader, loss_fn, config, steps_per_epoch):
     
     for batch in test_loader:
         gray_np, ab_target_np = batch
+        
+        # Convert to numpy if needed
+        if hasattr(gray_np, 'numpy'):
+            gray_np = gray_np.numpy()
+        if hasattr(ab_target_np, 'numpy'):
+            ab_target_np = ab_target_np.numpy()
         
         # Skip NaN inputs
         if np.isnan(gray_np).any() or np.isnan(ab_target_np).any():

@@ -24,8 +24,12 @@ class Config:
     ssim_weight = 0.1
     perceptual_weight = 0.05
     
-    # Device
-    device = ndl.cpu()
+    # Device selection (prefer GPU if available)
+    try:
+        device = ndl.cuda()
+        _ = ndl.Tensor([0], device=device)  # simple check
+    except Exception:
+        device = ndl.cpu()
     dtype = "float32"
     
     # Checkpoints

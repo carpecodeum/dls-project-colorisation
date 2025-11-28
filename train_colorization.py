@@ -263,19 +263,47 @@ def save_checkpoint(model, optimizer, epoch, loss, config):
     
     checkpoint_path = os.path.join(config.checkpoint_dir, f"colorization_epoch_{epoch+1}.pkl")
     
-    # Save model parameters
+    # Save model parameters as numpy arrays (pickleable)
     import pickle
+    
+    # Extract parameter values as numpy arrays
+    param_values = []
+    for param in model.parameters():
+        param_values.append(param.numpy())
+    
     checkpoint = {
         'epoch': epoch,
-        'model_state': model.parameters(),
-        'optimizer_state': optimizer,
+        'param_values': param_values,
         'loss': loss,
+        'config': {
+            'batch_size': config.batch_size,
+            'learning_rate': config.learning_rate,
+        }
     }
     
     with open(checkpoint_path, 'wb') as f:
         pickle.dump(checkpoint, f)
     
     print(f"Checkpoint saved: {checkpoint_path}")
+
+
+def load_checkpoint(model, checkpoint_path, device, dtype):
+    """Load model checkpoint."""
+    import pickle
+    
+    with open(checkpoint_path, 'rb') as f:
+        checkpoint = pickle.load(f)
+    
+    # Restore parameter values
+    params = model.parameters()
+    for param, value in zip(params, checkpoint['param_values']):
+        param.cached_data = ndl.Tensor(value, device=device, dtype=dtype).cached_data
+    
+    print(f"Checkpoint loaded: {checkpoint_path}")
+    print(f"  Epoch: {checkpoint['epoch'] + 1}")
+    print(f"  Loss: {checkpoint['loss']:.4f}")
+    
+    return checkpoint['epoch']
 
 
 def main():

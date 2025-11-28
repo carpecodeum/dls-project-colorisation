@@ -75,7 +75,7 @@ class Config:
     
     # Training - reduced batch size to avoid OOM
     batch_size = 16  # Reduced from 64 to prevent out of memory
-    num_epochs = 20
+    num_epochs = 50  # Increased from 20 for better convergence
     learning_rate = 0.0005  # Reduced from 0.001 for stability (prevents NaN)
     
     # Loss weights - SSIM disabled for stability
@@ -89,7 +89,7 @@ class Config:
     
     # Checkpoints
     checkpoint_dir = "./checkpoints"
-    save_every = 5  # Save checkpoint every N epochs
+    save_every = 10  # Save checkpoint every N epochs
     
     # Logging
     log_every = 50  # Log every N batches (increased since more batches now)

@@ -94,11 +94,17 @@ class ValidationSuite:
         # Test 1: Color space operations
         print("\n[1/5] Testing color space operations...")
         try:
-            from needle.ops.ops_colorspace import rgb_to_lab_numpy, lab_to_rgb_numpy
-            rgb = np.random.rand(32, 32, 3).astype(np.float32)
-            lab = rgb_to_lab_numpy(rgb)
-            rgb_back = lab_to_rgb_numpy(lab)
-            error = np.mean(np.abs(rgb - rgb_back))
+            from needle.ops.ops_colorspace import rgb_to_lab, lab_to_rgb
+            # Create a test RGB tensor
+            rgb_np = np.random.rand(1, 3, 8, 8).astype(np.float32)
+            rgb_tensor = ndl.Tensor(rgb_np, device=self.device)
+            
+            # Convert RGB -> Lab -> RGB
+            lab_tensor = rgb_to_lab(rgb_tensor)
+            rgb_back_tensor = lab_to_rgb(lab_tensor)
+            rgb_back = rgb_back_tensor.numpy()
+            
+            error = np.mean(np.abs(rgb_np - rgb_back))
             assert error < 0.1, f"RGB->Lab->RGB error too high: {error}"
             print(f"      ✓ Color space conversion (error: {error:.4f})")
             tests_passed += 1

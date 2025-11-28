@@ -73,8 +73,8 @@ class Config:
     # Dataset
     data_dir = "./data/cifar-10-batches-py"
     
-    # Training
-    batch_size = 64
+    # Training - reduced batch size to avoid OOM
+    batch_size = 16  # Reduced from 64 to prevent out of memory
     num_epochs = 20
     learning_rate = 0.001
     
@@ -92,7 +92,7 @@ class Config:
     save_every = 5  # Save checkpoint every N epochs
     
     # Logging
-    log_every = 10  # Log every N batches
+    log_every = 50  # Log every N batches (increased since more batches now)
 
 
 def create_dataloaders(config):

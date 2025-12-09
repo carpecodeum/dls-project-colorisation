@@ -36,9 +36,9 @@ def parse_mnist(image_filename, label_filename):
                 labels of the examples.  Values should be of type np.int8 and
                 for MNIST will contain the values 0-9.
     """
-    ### BEGIN YOUR SOLUTION
+    
     raise NotImplementedError()
-    ### END YOUR SOLUTION
+    
 
 
 def softmax_loss(Z, y_one_hot):
@@ -57,9 +57,9 @@ def softmax_loss(Z, y_one_hot):
     Returns:
         Average softmax loss over the sample. (ndl.Tensor[np.float32])
     """
-    ### BEGIN YOUR SOLUTION
+    
     raise NotImplementedError()
-    ### END YOUR SOLUTION
+    
 
 
 def nn_epoch(X, y, W1, W2, lr=0.1, batch=100):
@@ -86,9 +86,9 @@ def nn_epoch(X, y, W1, W2, lr=0.1, batch=100):
             W2: ndl.Tensor[np.float32]
     """
 
-    ### BEGIN YOUR SOLUTION
+    
     raise NotImplementedError()
-    ### END YOUR SOLUTION
+    
 
 ### CIFAR-10 training ###
 def epoch_general_cifar10(dataloader, model, loss_fn=nn.SoftmaxLoss(), opt=None):
@@ -109,7 +109,7 @@ def epoch_general_cifar10(dataloader, model, loss_fn=nn.SoftmaxLoss(), opt=None)
         avg_loss: average loss over dataset
     """
     np.random.seed(4)
-    ### BEGIN YOUR SOLUTION
+    
     if opt is not None:
         model.train()
     else:
@@ -140,7 +140,7 @@ def epoch_general_cifar10(dataloader, model, loss_fn=nn.SoftmaxLoss(), opt=None)
     avg_acc = total_correct / total_samples
     
     return avg_acc, avg_loss
-    ### END YOUR SOLUTION
+    
 
 
 def train_cifar10(model, dataloader, n_epochs=1, optimizer=ndl.optim.Adam,
@@ -162,7 +162,7 @@ def train_cifar10(model, dataloader, n_epochs=1, optimizer=ndl.optim.Adam,
         avg_loss: average loss over dataset from last epoch of training
     """
     np.random.seed(4)
-    ### BEGIN YOUR SOLUTION
+    
     opt = optimizer(model.parameters(), lr=lr, weight_decay=weight_decay)
     loss_fn_instance = loss_fn()
     
@@ -171,7 +171,7 @@ def train_cifar10(model, dataloader, n_epochs=1, optimizer=ndl.optim.Adam,
         print(f"Epoch {epoch + 1}/{n_epochs}, Loss: {avg_loss:.4f}, Accuracy: {avg_acc:.4f}")
     
     return avg_acc, avg_loss
-    ### END YOUR SOLUTION
+    
 
 
 def evaluate_cifar10(model, dataloader, loss_fn=nn.SoftmaxLoss):
@@ -188,10 +188,10 @@ def evaluate_cifar10(model, dataloader, loss_fn=nn.SoftmaxLoss):
         avg_loss: average loss over dataset
     """
     np.random.seed(4)
-    ### BEGIN YOUR SOLUTION
+    
     loss_fn_instance = loss_fn()
     return epoch_general_cifar10(dataloader, model, loss_fn_instance, opt=None)
-    ### END YOUR SOLUTION
+    
 
 
 ### PTB training ###
@@ -216,7 +216,7 @@ def epoch_general_ptb(data, model, seq_len=40, loss_fn=nn.SoftmaxLoss(), opt=Non
         avg_loss: average loss over dataset
     """
     np.random.seed(4)
-    ### BEGIN YOUR SOLUTION
+    
     if opt is not None:
         model.train()
     else:
@@ -256,7 +256,7 @@ def epoch_general_ptb(data, model, seq_len=40, loss_fn=nn.SoftmaxLoss(), opt=Non
     avg_acc = total_correct / total_samples
     
     return avg_acc, avg_loss
-    ### END YOUR SOLUTION
+    
 
 
 def train_ptb(model, data, seq_len=40, n_epochs=1, optimizer=ndl.optim.SGD,
@@ -281,7 +281,7 @@ def train_ptb(model, data, seq_len=40, n_epochs=1, optimizer=ndl.optim.SGD,
         avg_loss: average loss over dataset from last epoch of training
     """
     np.random.seed(4)
-    ### BEGIN YOUR SOLUTION
+    
     opt = optimizer(model.parameters(), lr=lr, weight_decay=weight_decay)
     loss_fn_instance = loss_fn()
     
@@ -290,7 +290,7 @@ def train_ptb(model, data, seq_len=40, n_epochs=1, optimizer=ndl.optim.SGD,
         print(f"Epoch {epoch + 1}/{n_epochs}, Loss: {avg_loss:.4f}, Accuracy: {avg_acc:.4f}")
     
     return avg_acc, avg_loss
-    ### END YOUR SOLUTION
+    
 
 def evaluate_ptb(model, data, seq_len=40, loss_fn=nn.SoftmaxLoss,
         device=None, dtype="float32"):
@@ -308,10 +308,10 @@ def evaluate_ptb(model, data, seq_len=40, loss_fn=nn.SoftmaxLoss,
         avg_loss: average loss over dataset
     """
     np.random.seed(4)
-    ### BEGIN YOUR SOLUTION
+    
     loss_fn_instance = loss_fn()
     return epoch_general_ptb(data, model, seq_len, loss_fn_instance, opt=None, device=device, dtype=dtype)
-    ### END YOUR SOLUTION
+    
 
 ### CODE BELOW IS FOR ILLUSTRATION, YOU DO NOT NEED TO EDIT
 

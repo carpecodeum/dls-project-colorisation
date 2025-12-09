@@ -85,7 +85,7 @@ class Linear(Module):
         self.in_features = in_features
         self.out_features = out_features
 
-        ### BEGIN YOUR SOLUTION
+        
         self.weight = Parameter(
             init.kaiming_uniform(in_features, out_features, 
                                device=device, dtype=dtype, requires_grad=True)
@@ -98,34 +98,34 @@ class Linear(Module):
             )
         else:
             self.bias = None
-        ### END YOUR SOLUTION
+        
 
     def forward(self, X: Tensor) -> Tensor:
-        ### BEGIN YOUR SOLUTION
+        
         out = X @ self.weight
         if self.bias:
             out = out + self.bias.broadcast_to(out.shape)
         return out
-        ### END YOUR SOLUTION
+        
 
 
 class Flatten(Module):
     def forward(self, X: Tensor) -> Tensor:
-        ### BEGIN YOUR SOLUTION
+        
         batch_size = X.shape[0]
         # Calculate total size of all dimensions except batch
         total_size = 1
         for dim in X.shape[1:]:
             total_size *= dim
         return X.reshape((batch_size, total_size))
-        ### END YOUR SOLUTION
+        
 
 
 class ReLU(Module):
     def forward(self, x: Tensor) -> Tensor:
-        ### BEGIN YOUR SOLUTION
+        
         return ops.relu(x)
-        ### END YOUR SOLUTION
+        
 
 class Sequential(Module):
     def __init__(self, *modules: Module) -> None:
@@ -133,16 +133,16 @@ class Sequential(Module):
         self.modules = modules
 
     def forward(self, x: Tensor) -> Tensor:
-        ### BEGIN YOUR SOLUTION
+        
         for module in self.modules:
             x = module(x)
         return x
-        ### END YOUR SOLUTION
+        
 
 
 class SoftmaxLoss(Module):
     def forward(self, logits: Tensor, y: Tensor) -> Tensor:
-        ### BEGIN YOUR SOLUTION
+        
         batch_size, num_classes = logits.shape
         
         # Compute log(sum(exp(logits))) for each sample
@@ -160,7 +160,7 @@ class SoftmaxLoss(Module):
         loss = (log_sum_exp - correct_class_logits).sum() / batch_size
         
         return loss
-        ### END YOUR SOLUTION
+        
 
 
 class BatchNorm1d(Module):
@@ -169,17 +169,17 @@ class BatchNorm1d(Module):
         self.dim = dim
         self.eps = eps
         self.momentum = momentum
-        ### BEGIN YOUR SOLUTION
+        
         self.device = device
         self.dtype = dtype
         self.weight = Parameter(init.ones(dim, device=device, dtype=dtype, requires_grad=True))
         self.bias = Parameter(init.zeros(dim, device=device, dtype=dtype, requires_grad=True))
         self.running_mean = init.zeros(dim, device=device, dtype=dtype)
         self.running_var = init.ones(dim, device=device, dtype=dtype)
-        ### END YOUR SOLUTION
+        
 
     def forward(self, x: Tensor) -> Tensor:
-        ### BEGIN YOUR SOLUTION
+        
         batch_size = x.shape[0]
         
         if self.training:
@@ -208,7 +208,7 @@ class BatchNorm1d(Module):
         
         # Scale and shift
         return self.weight.broadcast_to(x.shape) * x_norm + self.bias.broadcast_to(x.shape)
-        ### END YOUR SOLUTION
+        
 
 class BatchNorm2d(BatchNorm1d):
     def __init__(self, *args, **kwargs):
@@ -227,7 +227,7 @@ class LayerNorm1d(Module):
         super().__init__()
         self.dim = dim
         self.eps = eps
-        ### BEGIN YOUR SOLUTION
+        
         self.device = device
         self.dtype = dtype
         self.weight = Parameter(
@@ -236,10 +236,10 @@ class LayerNorm1d(Module):
         self.bias = Parameter(
             init.zeros(dim, device=device, dtype=dtype, requires_grad=True)
         )
-        ### END YOUR SOLUTION
+        
 
     def forward(self, x: Tensor) -> Tensor:
-        ### BEGIN YOUR SOLUTION
+        
         original_shape = x.shape
         if len(original_shape) == 1:
             x = x.reshape((1, self.dim))
@@ -265,7 +265,7 @@ class LayerNorm1d(Module):
         out = normalized * weight + bias
 
         return out.reshape(original_shape)
-        ### END YOUR SOLUTION
+        
 
 
 class Dropout(Module):
@@ -274,7 +274,7 @@ class Dropout(Module):
         self.p = p
 
     def forward(self, x: Tensor) -> Tensor:
-        ### BEGIN YOUR SOLUTION
+        
         if (not self.training) or self.p == 0.0:
             return x
 
@@ -286,7 +286,7 @@ class Dropout(Module):
             *x.shape, p=keep_prob, device=x.device, dtype=x.dtype, requires_grad=False
         )
         return x * mask / keep_prob
-        ### END YOUR SOLUTION
+        
 
 
 class Residual(Module):
@@ -295,6 +295,6 @@ class Residual(Module):
         self.fn = fn
 
     def forward(self, x: Tensor) -> Tensor:
-        ### BEGIN YOUR SOLUTION
+        
         return x + self.fn(x)
-        ### END YOUR SOLUTION
+        

@@ -9,16 +9,16 @@ class MNISTDataset(Dataset):
         label_filename: str,
         transforms: Optional[List] = None,
     ):
-        ### BEGIN YOUR SOLUTION
+        
         raise NotImplementedError()
-        ### END YOUR SOLUTION
+        
 
     def __getitem__(self, index) -> object:
-        ### BEGIN YOUR SOLUTION
+        
         raise NotImplementedError()
-        ### END YOUR SOLUTION
+        
 
     def __len__(self) -> int:
-        ### BEGIN YOUR SOLUTION
+        
         raise NotImplementedError()
-        ### END YOUR SOLUTION
+        

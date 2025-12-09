@@ -110,7 +110,7 @@ class MultiHeadAttention(Module):
         result = None
         probs = None
 
-        ### BEGIN YOUR SOLUTION
+        
         scale = 1.0 / np.sqrt(q_dim)
 
         k_t = ops.transpose(k, axes=(2, 3))
@@ -130,7 +130,7 @@ class MultiHeadAttention(Module):
         probs = self.dropout(probs)
 
         result = self.matmul(probs, v)
-        ### END YOUR SOLUTION
+        
 
         return result, probs
 
@@ -222,7 +222,7 @@ class AttentionLayer(Module):
 
         result = None
 
-        ### BEGIN YOUR SOLUTION
+        
         inner_dim = self.num_head * self.dim_head
 
         q_flat = q.reshape((batch_size * queries_len, q_dim))
@@ -258,7 +258,7 @@ class AttentionLayer(Module):
             attn_output.reshape((batch_size * queries_len, inner_dim))
         )
         result = projected.reshape((batch_size, queries_len, self.out_features))
-        ### END YOUR SOLUTION
+        
 
         return result
 
@@ -283,7 +283,7 @@ class TransformerLayer(Module):
         self.device = device
         self.dtype = dtype
 
-        ### BEGIN YOUR SOLUTION
+        
         self.attention = AttentionLayer(
             q_features, num_head, dim_head,
             dropout=dropout, causal=causal,
@@ -301,7 +301,7 @@ class TransformerLayer(Module):
 
         self.hidden_size = hidden_size
         self.q_features = q_features
-        ### END YOUR SOLUTION
+        
 
     def forward(
         self,
@@ -315,7 +315,7 @@ class TransformerLayer(Module):
 
         batch_size, seq_len, x_dim = x.shape
 
-        ### BEGIN YOUR SOLUTION
+        
         attn_out = self.attention(x)
         attn_out = self.dropout_attn(attn_out)
         x = x + attn_out
@@ -333,7 +333,7 @@ class TransformerLayer(Module):
         y = self.dropout_ff(y)
 
         x = x + y
-        ### END YOUR SOLUTION
+        
 
         return x
 
@@ -362,7 +362,7 @@ class Transformer(Module):
         self.dtype = dtype
         self.batch_first = batch_first
 
-        ### BEGIN YOUR SOLUTION
+        
         self.embedding_size = embedding_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -381,7 +381,7 @@ class Transformer(Module):
                     device=device, dtype=dtype
                 )
             )
-        ### END YOUR SOLUTION
+        
 
     def forward(
         self,
@@ -391,7 +391,7 @@ class Transformer(Module):
         if not self.batch_first:
             x = ops.transpose(x, axes=(0, 1))
 
-        ### BEGIN YOUR SOLUTION
+        
         batch_size, seq_len, embed_dim = x.shape
         if seq_len > self.sequence_len:
             raise ValueError(
@@ -414,7 +414,7 @@ class Transformer(Module):
 
         for layer in self.layers:
             x = layer(x)
-        ### END YOUR SOLUTION
+        
 
         if not self.batch_first:
             x = ops.transpose(x, axes=(0, 1))

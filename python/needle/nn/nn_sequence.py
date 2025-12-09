@@ -13,9 +13,9 @@ class Sigmoid(Module):
         super().__init__()
 
     def forward(self, x: Tensor) -> Tensor:
-        ### BEGIN YOUR SOLUTION
+        
         return (1 + ops.exp(-x)) ** -1
-        ### END YOUR SOLUTION
+        
 
 class RNNCell(Module):
     def __init__(self, input_size, hidden_size, bias=True, nonlinearity='tanh', device=None, dtype="float32"):
@@ -37,7 +37,7 @@ class RNNCell(Module):
         Weights and biases are initialized from U(-sqrt(k), sqrt(k)) where k = 1/hidden_size
         """
         super().__init__()
-        ### BEGIN YOUR SOLUTION
+        
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.bias = bias
@@ -57,7 +57,7 @@ class RNNCell(Module):
                                               device=device, dtype=dtype, requires_grad=True))
             self.bias_hh = Parameter(init.rand(hidden_size, low=-bound, high=bound, 
                                               device=device, dtype=dtype, requires_grad=True))
-        ### END YOUR SOLUTION
+        
 
     def forward(self, X, h=None):
         """
@@ -70,7 +70,7 @@ class RNNCell(Module):
         h' of shape (bs, hidden_size): Tensor contianing the next hidden state
             for each element in the batch.
         """
-        ### BEGIN YOUR SOLUTION
+        
         batch_size = X.shape[0]
         
         if h is None:
@@ -88,7 +88,7 @@ class RNNCell(Module):
             out = ops.relu(out)
         
         return out
-        ### END YOUR SOLUTION
+        
 
 
 class RNN(Module):
@@ -115,7 +115,7 @@ class RNN(Module):
             of shape (hidden_size,).
         """
         super().__init__()
-        ### BEGIN YOUR SOLUTION
+        
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -128,7 +128,7 @@ class RNN(Module):
             self.rnn_cells.append(
                 RNNCell(layer_input_size, hidden_size, bias, nonlinearity, device, dtype)
             )
-        ### END YOUR SOLUTION
+        
 
     def forward(self, X, h0=None):
         """
@@ -142,7 +142,7 @@ class RNN(Module):
             (h_t) from the last layer of the RNN, for each t.
         h_n of shape (num_layers, bs, hidden_size) containing the final hidden state for each element in the batch.
         """
-        ### BEGIN YOUR SOLUTION
+        
         seq_len, batch_size, _ = X.shape
         
         if h0 is None:
@@ -167,7 +167,7 @@ class RNN(Module):
         h_n = ops.stack(h_list, axis=0)
         
         return output, h_n
-        ### END YOUR SOLUTION
+        
 
 
 class LSTMCell(Module):
@@ -189,7 +189,7 @@ class LSTMCell(Module):
         Weights and biases are initialized from U(-sqrt(k), sqrt(k)) where k = 1/hidden_size
         """
         super().__init__()
-        ### BEGIN YOUR SOLUTION
+        
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.bias = bias
@@ -210,7 +210,7 @@ class LSTMCell(Module):
                                               device=device, dtype=dtype, requires_grad=True))
         
         self.sigmoid = Sigmoid()
-        ### END YOUR SOLUTION
+        
 
 
     def forward(self, X, h=None):
@@ -229,7 +229,7 @@ class LSTMCell(Module):
         c' of shape (bs, hidden_size): Tensor containing the next cell state for each
             element in the batch.
         """
-        ### BEGIN YOUR SOLUTION
+        
         batch_size = X.shape[0]
         
         if h is None:
@@ -254,7 +254,7 @@ class LSTMCell(Module):
         h_new = o * ops.tanh(c_new)
         
         return h_new, c_new
-        ### END YOUR SOLUTION
+        
 
 
 class LSTM(Module):
@@ -280,7 +280,7 @@ class LSTM(Module):
         lstm_cells[k].bias_hh: The learnable hidden-hidden bias of the k-th layer,
             of shape (4*hidden_size,).
         """
-        ### BEGIN YOUR SOLUTION
+        
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
@@ -293,7 +293,7 @@ class LSTM(Module):
             self.lstm_cells.append(
                 LSTMCell(layer_input_size, hidden_size, bias, device, dtype)
             )
-        ### END YOUR SOLUTION
+        
 
     def forward(self, X, h=None):
         """
@@ -312,7 +312,7 @@ class LSTM(Module):
             h_n of shape (num_layers, bs, hidden_size) containing the final hidden state for each element in the batch.
             h_n of shape (num_layers, bs, hidden_size) containing the final hidden cell state for each element in the batch.
         """
-        ### BEGIN YOUR SOLUTION
+        
         seq_len, batch_size, _ = X.shape
         
         if h is None:
@@ -344,7 +344,7 @@ class LSTM(Module):
         c_n = ops.stack(c_list, axis=0)
         
         return output, (h_n, c_n)
-        ### END YOUR SOLUTION
+        
 
 class Embedding(Module):
     def __init__(self, num_embeddings, embedding_dim, device=None, dtype="float32"):
@@ -360,7 +360,7 @@ class Embedding(Module):
         weight - The learnable weights of shape (num_embeddings, embedding_dim)
             initialized from N(0, 1).
         """
-        ### BEGIN YOUR SOLUTION
+        
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
         self.device = device
@@ -368,7 +368,7 @@ class Embedding(Module):
         
         self.weight = Parameter(init.randn(num_embeddings, embedding_dim, mean=0.0, std=1.0,
                                           device=device, dtype=dtype, requires_grad=True))
-        ### END YOUR SOLUTION
+        
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -380,7 +380,7 @@ class Embedding(Module):
         Output:
         output of shape (seq_len, bs, embedding_dim)
         """
-        ### BEGIN YOUR SOLUTION
+        
         seq_len, bs = x.shape
         
         x_numpy = x.numpy().astype(np.int32)
@@ -399,4 +399,4 @@ class Embedding(Module):
         output = output_2d.reshape((seq_len, bs, self.embedding_dim))
         
         return output
-        ### END YOUR SOLUTION
+        

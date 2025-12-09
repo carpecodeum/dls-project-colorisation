@@ -24,17 +24,17 @@ class Dictionary(object):
         and appends to the list of words.
         Returns the word's unique ID.
         """
-        ### BEGIN YOUR SOLUTION
+        
         raise NotImplementedError()
-        ### END YOUR SOLUTION
+        
 
     def __len__(self):
         """
         Returns the number of unique words in the dictionary.
         """
-        ### BEGIN YOUR SOLUTION
+        
         raise NotImplementedError()
-        ### END YOUR SOLUTION
+        
 
 
 
@@ -59,9 +59,9 @@ class Corpus(object):
         Output:
         ids: List of ids
         """
-        ### BEGIN YOUR SOLUTION
+        
         raise NotImplementedError()
-        ### END YOUR SOLUTION
+        
 
 
 def batchify(data, batch_size, device, dtype):
@@ -80,9 +80,9 @@ def batchify(data, batch_size, device, dtype):
     If the data cannot be evenly divided by the batch size, trim off the remainder.
     Returns the data as a numpy array of shape (nbatch, batch_size).
     """
-    ### BEGIN YOUR SOLUTION
+    
     raise NotImplementedError()
-    ### END YOUR SOLUTION
+    
 
 
 def get_batch(batches, i, bptt, device=None, dtype=None):
@@ -104,6 +104,6 @@ def get_batch(batches, i, bptt, device=None, dtype=None):
     data - Tensor of shape (bptt, bs) with cached data as NDArray
     target - Tensor of shape (bptt*bs,) with cached data as NDArray
     """
-    ### BEGIN YOUR SOLUTION
+    
     raise NotImplementedError()
-    ### END YOUR SOLUTION
+    

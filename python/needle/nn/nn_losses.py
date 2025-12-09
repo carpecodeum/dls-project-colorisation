@@ -5,7 +5,6 @@ from needle.autograd import Tensor
 from needle import ops
 import needle.init as init
 from .nn_basic import Module, Parameter
-import numpy as np
 
 # Small epsilon for numerical stability
 EPS = 1e-6

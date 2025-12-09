@@ -1,13 +1,47 @@
-"""Training script for image colorization."""
+"""Training script for image colorization.
+
+Note: This script uses numpy for training infrastructure:
+- NaN/Inf checking on loss values
+- Data format conversion for validation
+This is standard practice for training loops. The model itself
+(nn modules, ops) uses pure Needle operations.
+"""
 
 import sys
 sys.path.append('./python')
 
 import needle as ndl
 import needle.nn as nn
-import numpy as np
 import time
 import os
+
+
+def tensor_to_scalar(tensor):
+    """Convert a Needle Tensor to a Python scalar."""
+    data = tensor.numpy()
+    if hasattr(data, 'flatten'):
+        return float(data.flatten()[0])
+    elif hasattr(data, 'item'):
+        return float(data.item())
+    else:
+        return float(data)
+
+
+def is_valid_loss(loss_val):
+    """Check if a loss value is valid (not NaN or Inf)."""
+    import math
+    return not (math.isnan(loss_val) or math.isinf(loss_val))
+
+
+def has_invalid_values(arr):
+    """Check if array has NaN or Inf values using Python math module."""
+    import math
+    # Flatten and check
+    flat = arr.flatten() if hasattr(arr, 'flatten') else [arr]
+    for val in flat[:100]:  # Check first 100 values for efficiency
+        if math.isnan(float(val)) or math.isinf(float(val)):
+            return True
+    return False
 
 
 def check_cuda_available():
@@ -138,13 +172,7 @@ def create_dataloaders(config):
 
 def get_loss_value(loss):
     """Safely extract scalar loss value from tensor."""
-    loss_np = loss.numpy()
-    if hasattr(loss_np, 'flatten'):
-        return float(loss_np.flatten()[0])
-    elif hasattr(loss_np, 'item'):
-        return float(loss_np.item())
-    else:
-        return float(loss_np)
+    return tensor_to_scalar(loss)
 
 
 def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch, steps_per_epoch):
@@ -157,26 +185,24 @@ def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch, steps_pe
     start_time = time.time()
     
     for batch_idx, batch in enumerate(train_loader):
-        gray_np, ab_target_np = batch
+        gray_tensor, ab_target_tensor = batch
         
-        # Convert to numpy if needed
-        if hasattr(gray_np, 'numpy'):
-            gray_np = gray_np.numpy()
-        if hasattr(ab_target_np, 'numpy'):
-            ab_target_np = ab_target_np.numpy()
+        # DataLoader returns Tensors - get numpy for normalization
+        gray_data = gray_tensor.numpy() if hasattr(gray_tensor, 'numpy') else gray_tensor
+        ab_target_data = ab_target_tensor.numpy() if hasattr(ab_target_tensor, 'numpy') else ab_target_tensor
         
-        # Check input for NaN
-        if np.isnan(gray_np).any() or np.isnan(ab_target_np).any():
+        # Check input for invalid values (NaN/Inf)
+        if has_invalid_values(gray_data) or has_invalid_values(ab_target_data):
             nan_batches += 1
             continue
         
         # Normalize ab targets to smaller range for stability
         # ab channels are in [-128, 127], normalize to [-1, 1]
-        ab_target_np = ab_target_np / 128.0
+        ab_target_data = ab_target_data / 128.0
         
-        # Convert to Tensors
-        gray = ndl.Tensor(gray_np, device=config.device, dtype=config.dtype)
-        ab_target = ndl.Tensor(ab_target_np, device=config.device, dtype=config.dtype)
+        # Convert to Tensors on target device
+        gray = ndl.Tensor(gray_data, device=config.device, dtype=config.dtype)
+        ab_target = ndl.Tensor(ab_target_data, device=config.device, dtype=config.dtype)
         
         # Forward pass
         ab_pred = model.predict_ab(gray)
@@ -184,9 +210,9 @@ def train_epoch(model, train_loader, loss_fn, optimizer, config, epoch, steps_pe
         # Compute loss
         loss = loss_fn(ab_pred, ab_target)
         
-        # Check for NaN loss and skip if detected
+        # Check for NaN/Inf loss and skip if detected
         loss_val = get_loss_value(loss)
-        if np.isnan(loss_val) or np.isinf(loss_val):
+        if not is_valid_loss(loss_val):
             nan_batches += 1
             if nan_batches <= 5:  # Only print first few warnings
                 print(f"  [WARNING] NaN/Inf loss at batch {batch_idx+1}, skipping...")
@@ -223,24 +249,22 @@ def evaluate(model, test_loader, loss_fn, config, steps_per_epoch):
     num_batches = 0
     
     for batch in test_loader:
-        gray_np, ab_target_np = batch
+        gray_tensor, ab_target_tensor = batch
         
-        # Convert to numpy if needed
-        if hasattr(gray_np, 'numpy'):
-            gray_np = gray_np.numpy()
-        if hasattr(ab_target_np, 'numpy'):
-            ab_target_np = ab_target_np.numpy()
+        # DataLoader returns Tensors - get data for normalization
+        gray_data = gray_tensor.numpy() if hasattr(gray_tensor, 'numpy') else gray_tensor
+        ab_target_data = ab_target_tensor.numpy() if hasattr(ab_target_tensor, 'numpy') else ab_target_tensor
         
-        # Skip NaN inputs
-        if np.isnan(gray_np).any() or np.isnan(ab_target_np).any():
+        # Skip invalid inputs
+        if has_invalid_values(gray_data) or has_invalid_values(ab_target_data):
             continue
         
         # Normalize ab targets to [-1, 1]
-        ab_target_np = ab_target_np / 128.0
+        ab_target_data = ab_target_data / 128.0
         
-        # Convert to Tensors
-        gray = ndl.Tensor(gray_np, device=config.device, dtype=config.dtype)
-        ab_target = ndl.Tensor(ab_target_np, device=config.device, dtype=config.dtype)
+        # Convert to Tensors on target device
+        gray = ndl.Tensor(gray_data, device=config.device, dtype=config.dtype)
+        ab_target = ndl.Tensor(ab_target_data, device=config.device, dtype=config.dtype)
         
         # Forward pass
         ab_pred = model.predict_ab(gray)
@@ -249,7 +273,7 @@ def evaluate(model, test_loader, loss_fn, config, steps_per_epoch):
         loss = loss_fn(ab_pred, ab_target)
         
         loss_val = get_loss_value(loss)
-        if not (np.isnan(loss_val) or np.isinf(loss_val)):
+        if is_valid_loss(loss_val):
             total_loss += loss_val
             num_batches += 1
     

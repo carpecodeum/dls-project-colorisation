@@ -2,6 +2,13 @@
 Colorization Dataset with Augmentation Pipeline.
 
 Provides train/val/test splits and data augmentation for image colorization.
+
+Note: This module uses numpy for data preprocessing and augmentation.
+This is intentional and follows standard deep learning practice:
+- Data loading/preprocessing operates on raw numpy arrays
+- DataLoader converts preprocessed numpy arrays to Needle Tensors
+- For differentiable color space operations in the neural network,
+  use needle.ops.rgb_to_lab, needle.ops.lab_to_rgb, needle.ops.gray_to_lab
 """
 
 import numpy as np

@@ -6,7 +6,6 @@ from needle import ops
 import needle.init as init
 from .nn_basic import Module, Parameter, ReLU, Sequential
 from .nn_conv import Conv
-import numpy as np
 
 
 class ConvBlock(Module):

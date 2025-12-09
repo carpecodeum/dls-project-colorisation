@@ -10,7 +10,7 @@ np.random.seed(0)
 class ResNet9(ndl.nn.Module):
     def __init__(self, device=None, dtype="float32"):
         super().__init__()
-        ### BEGIN YOUR SOLUTION ###
+         ###
         self.conv1 = nn.Conv(3, 16, 7, stride=4, device=device, dtype=dtype)
         self.bn1 = nn.BatchNorm2d(16, device=device, dtype=dtype)
         
@@ -38,10 +38,10 @@ class ResNet9(ndl.nn.Module):
         self.linear2 = nn.Linear(128, 10, device=device, dtype=dtype)
         
         self.relu = nn.ReLU()
-        ### END YOUR SOLUTION
+        
 
     def forward(self, x):
-        ### BEGIN YOUR SOLUTION
+        
         x = self.relu(self.bn1(self.conv1(x)))
         x = self.relu(self.bn2(self.conv2(x)))
         
@@ -63,7 +63,7 @@ class ResNet9(ndl.nn.Module):
         x = self.linear2(x)
         
         return x
-        ### END YOUR SOLUTION
+        
 
 
 class LanguageModel(nn.Module):
@@ -80,7 +80,7 @@ class LanguageModel(nn.Module):
         num_layers: Number of layers in RNN or LSTM
         """
         super(LanguageModel, self).__init__()
-        ### BEGIN YOUR SOLUTION
+        
         self.embedding_size = embedding_size
         self.output_size = output_size
         self.hidden_size = hidden_size
@@ -117,7 +117,7 @@ class LanguageModel(nn.Module):
             raise ValueError(f"Unknown seq_model: {seq_model}")
         
         self.linear = nn.Linear(self.output_dim, output_size, device=device, dtype=dtype)
-        ### END YOUR SOLUTION
+        
 
     def forward(self, x, h=None):
         """
@@ -132,7 +132,7 @@ class LanguageModel(nn.Module):
         h of shape (num_layers, bs, hidden_size) if using RNN,
             else h is tuple of (h0, c0), each of shape (num_layers, bs, hidden_size)
         """
-        ### BEGIN YOUR SOLUTION
+        
         seq_len, bs = x.shape
         
         emb = self.embedding(x)
@@ -141,7 +141,7 @@ class LanguageModel(nn.Module):
         out = self.linear(output)
         
         return out, h_new
-        ### END YOUR SOLUTION
+        
 
 
 if __name__ == "__main__":

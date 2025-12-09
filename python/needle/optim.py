@@ -24,7 +24,7 @@ class SGD(Optimizer):
         self.weight_decay = weight_decay
 
     def step(self):
-        ### BEGIN YOUR SOLUTION
+        
         for param in self.params:
             if param.grad is None:
                 continue
@@ -37,16 +37,16 @@ class SGD(Optimizer):
             self.u[param] = self.momentum * self.u[param] + (1 - self.momentum) * grad
             
             param.data = param.data - self.lr * self.u[param]
-        ### END YOUR SOLUTION
+        
 
     def clip_grad_norm(self, max_norm=0.25):
         """
         Clips gradient norm of parameters.
         Note: This does not need to be implemented for HW2 and can be skipped.
         """
-        ### BEGIN YOUR SOLUTION
+        
         raise NotImplementedError()
-        ### END YOUR SOLUTION
+        
 
 
 class Adam(Optimizer):
@@ -71,7 +71,7 @@ class Adam(Optimizer):
         self.v = {}
 
     def step(self):
-        ### BEGIN YOUR SOLUTION
+        
         self.t += 1
         
         for param in self.params:
@@ -93,4 +93,4 @@ class Adam(Optimizer):
             v_hat = self.v[param] / (1 - self.beta2 ** self.t)
             
             param.data = param.data - self.lr * m_hat / (v_hat ** 0.5 + self.eps)
-        ### END YOUR SOLUTION
+        

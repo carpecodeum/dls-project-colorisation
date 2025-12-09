@@ -30,9 +30,17 @@ This module provides the data loading, augmentation, and baseline evaluation inf
 
 ## Quick Start
 
+### Get the CIFAR-10 data
+```bash
+cd <project folder>
+!wget https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz
+!tar -xzf cifar-10-python.tar.gz
+!mkdir -p data
+!mv cifar-10-batches-py data/
+```
+
 ### Verify Installation
 ```bash
-cd /Users/adityabhatnagar/dls-proj
 python3 -c "
 import sys; sys.path.append('./python')
 import needle.data as data
@@ -117,3 +125,8 @@ augmented_img = aug(img)
 - matplotlib (for visualization)
 - jupyter (for notebook)
 
+### Dependency Installation
+Inside the jupyter notebook, run the following command: 
+```bash
+!pip install -r requirements.txt
+```

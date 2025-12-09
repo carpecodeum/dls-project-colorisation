@@ -27,7 +27,7 @@ class Conv(Module):
         self.kernel_size = kernel_size
         self.stride = stride
 
-        ### BEGIN YOUR SOLUTION
+        
         fan_in = in_channels * kernel_size * kernel_size
         fan_out = out_channels * kernel_size * kernel_size
         
@@ -47,10 +47,10 @@ class Conv(Module):
             self.bias = None
         
         self.padding = (kernel_size - 1) // 2
-        ### END YOUR SOLUTION
+        
 
     def forward(self, x: Tensor) -> Tensor:
-        ### BEGIN YOUR SOLUTION
+        
         x = ops.transpose(ops.transpose(x, (1, 2)), (2, 3))
         out = ops.conv(x, self.weight, stride=self.stride, padding=self.padding)
         
@@ -60,4 +60,4 @@ class Conv(Module):
         out = ops.transpose(ops.transpose(out, (2, 3)), (1, 2))
         
         return out
-        ### END YOUR SOLUTION
+        

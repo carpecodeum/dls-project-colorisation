@@ -6,7 +6,10 @@ from typing import Any, Callable, Iterable, Union
 import numpy as np
 
 from . import ndarray_backend_numpy
-from . import ndarray_backend_cpu  # type: ignore[attr-defined]
+try:
+    from . import ndarray_backend_cpu  # type: ignore[attr-defined]
+except ImportError:
+    ndarray_backend_cpu = None
 
 
 # math.prod not in Python 3.7
@@ -76,6 +79,8 @@ def cpu_numpy() -> BackendDevice:
 
 def cpu() -> BackendDevice:
     """Return cpu device"""
+    if ndarray_backend_cpu is None:
+        return cpu_numpy()
     return BackendDevice("cpu", ndarray_backend_cpu)
 
 
@@ -85,7 +90,17 @@ def default_device() -> BackendDevice:
 
 def all_devices() -> list[BackendDevice]:
     """return a list of all available devices"""
-    return [cpu(), cuda(), cpu_numpy()]
+    devices = []
+    cpu_dev = cpu()
+    if cpu_dev.enabled():
+        devices.append(cpu_dev)
+    cuda_dev = cuda()
+    if cuda_dev.enabled():
+        devices.append(cuda_dev)
+    cpu_np = cpu_numpy()
+    if cpu_np.enabled() and cpu_np not in devices:
+        devices.append(cpu_np)
+    return devices
 
 
 class NDArray:
@@ -261,7 +276,7 @@ class NDArray:
             NDArray : reshaped array; this will point to thep
         """
 
-        ### BEGIN YOUR SOLUTION
+        
         if not self.is_compact():
             raise ValueError("Cannot reshape non-compact array")
         
@@ -278,7 +293,7 @@ class NDArray:
         
         new_strides = NDArray.compact_strides(new_shape)
         return NDArray.make(new_shape, new_strides, self.device, self._handle, self._offset)
-        ### END YOUR SOLUTION
+        
 
     def permute(self, new_axes: tuple[int, ...]) -> "NDArray":
         """
@@ -301,11 +316,11 @@ class NDArray:
             strides changed).
         """
 
-        ### BEGIN YOUR SOLUTION
+        
         new_shape = tuple(self.shape[i] for i in new_axes)
         new_strides = tuple(self.strides[i] for i in new_axes)
         return NDArray.make(new_shape, new_strides, self.device, self._handle, self._offset)
-        ### END YOUR SOLUTION
+        
 
     def broadcast_to(self, new_shape: tuple[int, ...]) -> "NDArray":
         """
@@ -327,7 +342,7 @@ class NDArray:
             point to the same memory as the original array.
         """
 
-        ### BEGIN YOUR SOLUTION
+        
         ndim_diff = len(new_shape) - len(self.shape)
         new_strides = [0] * ndim_diff + list(self.strides)
         
@@ -341,7 +356,7 @@ class NDArray:
                 assert False, f"Cannot broadcast dimension {idx} from {self.shape[idx]} to {new_shape[i]}"
         
         return NDArray.make(new_shape, tuple(new_strides), self.device, self._handle, self._offset)
-        ### END YOUR SOLUTION
+        
 
     ### Get and set elements
 
@@ -406,7 +421,7 @@ class NDArray:
         )
         assert len(slices) == self.ndim, "Need indexes equal to number of dimensions"
 
-        ### BEGIN YOUR SOLUTION
+        
         new_shape = []
         new_strides = []
         new_offset = self._offset
@@ -422,7 +437,7 @@ class NDArray:
                 new_strides.append(self.strides[i] * s.step)
         
         return NDArray.make(tuple(new_shape), tuple(new_strides), self.device, self._handle, new_offset)
-        ### END YOUR SOLUTION
+        
 
     def __setitem__(self, idxs: int | slice | tuple[int | slice, ...], other: Union["NDArray", float]) -> None:
         """Set the values of a view into an array, using the same semantics
@@ -637,7 +652,7 @@ class NDArray:
         Flip this ndarray along the specified axes.
         Note: compact() before returning.
         """
-        ### BEGIN YOUR SOLUTION
+        
         new_strides = list(self.strides)
         for axis in axes:
             new_strides[axis] = -new_strides[axis]
@@ -647,7 +662,7 @@ class NDArray:
             new_offset += (self.shape[axis] - 1) * self.strides[axis]
         
         return NDArray.make(self.shape, tuple(new_strides), self.device, self._handle, new_offset).compact()
-        ### END YOUR SOLUTION
+        
 
     def pad(self, axes: tuple[tuple[int, int], ...]) -> "NDArray":
         """
@@ -655,7 +670,7 @@ class NDArray:
         which lists for _all_ axes the left and right padding amount, e.g.,
         axes = ( (0, 0), (1, 1), (0, 0)) pads the middle axis with a 0 on the left and right side.
         """
-        ### BEGIN YOUR SOLUTION
+        
         new_shape = tuple(self.shape[i] + axes[i][0] + axes[i][1] for i in range(len(self.shape)))
         out = NDArray.make(new_shape, device=self.device)
         out.fill(0)
@@ -663,7 +678,7 @@ class NDArray:
         out[slices] = self.compact()
         
         return out
-        ### END YOUR SOLUTION
+        
 
 def array(a: Any, dtype: str = "float32", device: BackendDevice | None = None) -> NDArray:
     """Convenience methods to match numpy a bit more closely."""

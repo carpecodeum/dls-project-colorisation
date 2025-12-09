@@ -59,18 +59,18 @@ class DataLoader:
                                            range(batch_size, len(dataset), batch_size))
 
     def __iter__(self):
-        ### BEGIN YOUR SOLUTION
+        
         self.current_batch = 0
         if self.shuffle:
             indices = np.arange(len(self.dataset))
             np.random.shuffle(indices)
             self.ordering = np.array_split(indices, 
                                           range(self.batch_size, len(self.dataset), self.batch_size))
-        ### END YOUR SOLUTION
+        
         return self
 
     def __next__(self):
-        ### BEGIN YOUR SOLUTION
+        
         if self.current_batch >= len(self.ordering):
             raise StopIteration
         
@@ -83,5 +83,5 @@ class DataLoader:
         y = np.array([item[1] for item in batch_data])
         
         return Tensor(X), Tensor(y)
-        ### END YOUR SOLUTION
+        
 

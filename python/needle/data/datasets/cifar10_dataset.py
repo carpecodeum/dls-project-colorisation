@@ -35,7 +35,7 @@ class CIFAR10Dataset(Dataset):
         val_size - number of samples for validation set
         seed - random seed for reproducible train/val split
         """
-        ### BEGIN YOUR SOLUTION
+        
         self.transforms = transforms
         self.p = p
         
@@ -77,14 +77,14 @@ class CIFAR10Dataset(Dataset):
         
         # Reshape from (N, 3072) to (N, 3, 32, 32)
         self.X = self.X.reshape(-1, 3, 32, 32)
-        ### END YOUR SOLUTION
+        
 
     def __getitem__(self, index) -> object:
         """
         Returns the image, label at given index
         Image should be of shape (3, 32, 32)
         """
-        ### BEGIN YOUR SOLUTION
+        
         img = self.X[index].copy()
         label = self.y[index]
         
@@ -93,12 +93,12 @@ class CIFAR10Dataset(Dataset):
                 img = transform(img)
         
         return img, label
-        ### END YOUR SOLUTION
+        
 
     def __len__(self) -> int:
         """
         Returns the total number of examples in the dataset
         """
-        ### BEGIN YOUR SOLUTION
+        
         return len(self.X)
-        ### END YOUR SOLUTION
+        

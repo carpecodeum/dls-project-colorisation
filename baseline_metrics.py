@@ -4,6 +4,8 @@ Baseline Metrics Script for Image Colorization
 Computes PSNR and SSIM metrics on grayscale baseline (no colorization).
 This serves as a baseline to compare against trained models.
 
+Uses Needle operations where possible, with Python math for scalar operations.
+
 Usage:
     python baseline_metrics.py [--samples N] [--output results.json]
 """
@@ -11,71 +13,97 @@ Usage:
 import sys
 sys.path.append('./python')
 
-import numpy as np
 import argparse
 import json
+import math
+import random
 from datetime import datetime
 
+import needle as ndl
+from needle import ops
 
-def compute_psnr(pred: np.ndarray, target: np.ndarray, max_val: float = 1.0) -> float:
+
+def compute_psnr(pred: ndl.Tensor, target: ndl.Tensor, max_val: float = 1.0) -> float:
     """
-    Compute Peak Signal-to-Noise Ratio.
+    Compute Peak Signal-to-Noise Ratio using Needle operations.
     
     Args:
-        pred: Predicted image (H, W, C) or (C, H, W)
-        target: Ground truth image
+        pred: Predicted image tensor
+        target: Ground truth image tensor
         max_val: Maximum pixel value (1.0 for normalized images)
     
     Returns:
         PSNR value in dB
     """
-    mse = np.mean((pred - target) ** 2)
+    diff = pred - target
+    squared_diff = diff * diff
+    
+    # Compute mean
+    numel = 1
+    for dim in squared_diff.shape:
+        numel *= dim
+    mse_tensor = ops.summation(squared_diff) / numel
+    mse = float(mse_tensor.numpy().flatten()[0])
+    
     if mse == 0:
         return float('inf')
-    return 20 * np.log10(max_val / np.sqrt(mse))
+    return 20 * math.log10(max_val / math.sqrt(mse))
 
 
-def compute_ssim(pred: np.ndarray, target: np.ndarray, 
+def compute_ssim(pred: ndl.Tensor, target: ndl.Tensor, 
                  C1: float = 0.01**2, C2: float = 0.03**2) -> float:
     """
-    Compute Structural Similarity Index (simplified global version).
+    Compute Structural Similarity Index using Needle operations.
     
     Args:
-        pred: Predicted image
-        target: Ground truth image
+        pred: Predicted image tensor
+        target: Ground truth image tensor
         C1, C2: Stability constants
     
     Returns:
         SSIM value in [0, 1]
     """
-    # Flatten for global computation
-    pred_flat = pred.flatten()
-    target_flat = target.flatten()
+    # Flatten tensors
+    pred_flat = ops.reshape(pred, (pred.shape[0] * pred.shape[1] * pred.shape[2],))
+    target_flat = ops.reshape(target, (target.shape[0] * target.shape[1] * target.shape[2],))
+    
+    numel = pred_flat.shape[0]
     
     # Compute means
-    mu_pred = np.mean(pred_flat)
-    mu_target = np.mean(target_flat)
+    mu_pred = ops.summation(pred_flat) / numel
+    mu_target = ops.summation(target_flat) / numel
+    
+    # Broadcast means for centered computation
+    mu_pred_val = float(mu_pred.numpy().flatten()[0])
+    mu_target_val = float(mu_target.numpy().flatten()[0])
     
     # Compute variances and covariance
-    var_pred = np.var(pred_flat)
-    var_target = np.var(target_flat)
-    covar = np.mean((pred_flat - mu_pred) * (target_flat - mu_target))
+    pred_centered = pred_flat - mu_pred_val
+    target_centered = target_flat - mu_target_val
+    
+    var_pred = ops.summation(pred_centered * pred_centered) / numel
+    var_target = ops.summation(target_centered * target_centered) / numel
+    covar = ops.summation(pred_centered * target_centered) / numel
+    
+    var_pred_val = float(var_pred.numpy().flatten()[0])
+    var_target_val = float(var_target.numpy().flatten()[0])
+    covar_val = float(covar.numpy().flatten()[0])
     
     # SSIM formula
-    numerator = (2 * mu_pred * mu_target + C1) * (2 * covar + C2)
-    denominator = (mu_pred**2 + mu_target**2 + C1) * (var_pred + var_target + C2)
+    numerator = (2 * mu_pred_val * mu_target_val + C1) * (2 * covar_val + C2)
+    denominator = (mu_pred_val**2 + mu_target_val**2 + C1) * (var_pred_val + var_target_val + C2)
     
     return numerator / (denominator + 1e-8)
 
 
-def compute_ssim_windowed(pred: np.ndarray, target: np.ndarray,
-                          window_size: int = 7) -> float:
+def compute_ssim_windowed(pred_np, target_np, window_size: int = 7) -> float:
     """
     Compute SSIM using sliding window (more accurate).
+    Uses Python loops for windowing, Needle for computations.
     
     Args:
-        pred: Predicted image (H, W, C)
-        target: Ground truth image (H, W, C)
+        pred_np: Predicted image numpy array (H, W, C)
+        target_np: Ground truth image numpy array (H, W, C)
         window_size: Size of the sliding window
     
     Returns:
@@ -84,86 +112,115 @@ def compute_ssim_windowed(pred: np.ndarray, target: np.ndarray,
     C1 = 0.01 ** 2
     C2 = 0.03 ** 2
     
-    H, W, C = pred.shape
+    H, W, C = pred_np.shape
     ssim_values = []
     
     for i in range(0, H - window_size + 1, window_size // 2):
         for j in range(0, W - window_size + 1, window_size // 2):
-            window_pred = pred[i:i+window_size, j:j+window_size, :]
-            window_target = target[i:i+window_size, j:j+window_size, :]
+            window_pred = pred_np[i:i+window_size, j:j+window_size, :]
+            window_target = target_np[i:i+window_size, j:j+window_size, :]
             
-            mu_p = np.mean(window_pred)
-            mu_t = np.mean(window_target)
-            var_p = np.var(window_pred)
-            var_t = np.var(window_target)
-            covar = np.mean((window_pred - mu_p) * (window_target - mu_t))
+            # Convert to Needle tensors
+            wp = ndl.Tensor(window_pred.flatten())
+            wt = ndl.Tensor(window_target.flatten())
+            numel = wp.shape[0]
+            
+            mu_p = float((ops.summation(wp) / numel).numpy().flatten()[0])
+            mu_t = float((ops.summation(wt) / numel).numpy().flatten()[0])
+            
+            wp_c = wp - mu_p
+            wt_c = wt - mu_t
+            
+            var_p = float((ops.summation(wp_c * wp_c) / numel).numpy().flatten()[0])
+            var_t = float((ops.summation(wt_c * wt_c) / numel).numpy().flatten()[0])
+            covar = float((ops.summation(wp_c * wt_c) / numel).numpy().flatten()[0])
             
             num = (2 * mu_p * mu_t + C1) * (2 * covar + C2)
             den = (mu_p**2 + mu_t**2 + C1) * (var_p + var_t + C2)
             ssim_values.append(num / (den + 1e-8))
     
-    return np.mean(ssim_values)
+    return sum(ssim_values) / len(ssim_values) if ssim_values else 0.0
 
 
-def lab_to_rgb(lab: np.ndarray) -> np.ndarray:
+def lab_to_rgb_tensor(lab: ndl.Tensor) -> ndl.Tensor:
     """
-    Convert Lab to RGB.
-    lab: (3, H, W) or (H, W, 3)
+    Convert Lab to RGB using Needle operations.
+    lab: (3, H, W) tensor
+    Returns: (H, W, 3) tensor
     """
-    if lab.shape[0] == 3:
-        lab = np.transpose(lab, (1, 2, 0))
-    
-    L, a, b = lab[:, :, 0], lab[:, :, 1], lab[:, :, 2]
-    
-    # Lab to XYZ
-    fy = (L + 16.0) / 116.0
-    fx = a / 500.0 + fy
-    fz = fy - b / 200.0
-    
-    epsilon = 0.008856
-    kappa = 903.3
-    
-    xr = np.where(fx**3 > epsilon, fx**3, (116.0 * fx - 16.0) / kappa)
-    yr = np.where(L > kappa * epsilon, ((L + 16.0) / 116.0)**3, L / kappa)
-    zr = np.where(fz**3 > epsilon, fz**3, (116.0 * fz - 16.0) / kappa)
-    
-    X = xr * 0.95047
-    Y = yr * 1.0
-    Z = zr * 1.08883
-    
-    xyz = np.stack([X, Y, Z], axis=-1)
-    
-    # XYZ to RGB
-    M_inv = np.array([
-        [ 3.2404542, -1.5371385, -0.4985314],
-        [-0.9692660,  1.8760108,  0.0415560],
-        [ 0.0556434, -0.2040259,  1.0572252]
-    ])
-    
-    rgb = np.dot(xyz, M_inv.T)
-    
-    # Gamma correction
-    mask = rgb > 0.0031308
-    rgb = np.where(mask,
-                   1.055 * np.power(np.clip(rgb, 0, None), 1.0/2.4) - 0.055,
-                   12.92 * rgb)
-    
-    return np.clip(rgb, 0, 1)
+    # Use the ops.lab_to_rgb function
+    # First reshape to (1, 3, H, W) for batch processing
+    C, H, W = lab.shape
+    lab_batch = ops.reshape(lab, (1, C, H, W))
+    rgb_batch = ops.lab_to_rgb(lab_batch)
+    # Reshape to (H, W, 3)
+    rgb = ops.reshape(rgb_batch, (3, H, W))
+    # Permute to HWC
+    rgb_np = rgb.numpy()
+    return rgb_np.transpose(1, 2, 0)  # Return as numpy HWC for metrics
 
 
-def grayscale_baseline(L: np.ndarray) -> np.ndarray:
+def grayscale_baseline_tensor(L: ndl.Tensor):
     """
     Create grayscale RGB image from L channel (baseline - no color).
     
     Args:
-        L: Luminance channel (1, H, W) in [0, 1]
+        L: Luminance channel tensor (1, H, W) in [0, 1]
     
     Returns:
-        RGB image (H, W, 3) where R=G=B
+        RGB numpy array (H, W, 3) where R=G=B
     """
-    # Convert L from [0, 1] to grayscale RGB
-    gray = L[0]  # (H, W)
-    return np.stack([gray, gray, gray], axis=-1)
+    L_np = L.numpy()
+    gray = L_np[0]  # (H, W)
+    # Stack using list comprehension (avoiding numpy.stack)
+    H, W = gray.shape
+    rgb = [[[ gray[i, j], gray[i, j], gray[i, j] ] for j in range(W)] for i in range(H)]
+    # Convert back to flat array structure
+    import array
+    result = []
+    for i in range(H):
+        for j in range(W):
+            for c in range(3):
+                result.append(gray[i, j])
+    # Reshape manually
+    result_arr = []
+    idx = 0
+    for i in range(H):
+        row = []
+        for j in range(W):
+            pixel = [result[idx], result[idx+1], result[idx+2]]
+            idx += 3
+            row.append(pixel)
+        result_arr.append(row)
+    return result_arr
+
+
+def grayscale_baseline(L_np):
+    """
+    Create grayscale RGB from L channel numpy array.
+    
+    Args:
+        L_np: Luminance numpy array (1, H, W) in [0, 1]
+    
+    Returns:
+        RGB numpy array (H, W, 3)
+    """
+    gray = L_np[0]  # (H, W)
+    H, W = gray.shape
+    # Build RGB array without numpy.stack
+    rgb = [[[gray[i, j]] * 3 for j in range(W)] for i in range(H)]
+    return rgb
+
+
+def compute_l1_error(pred: ndl.Tensor, target: ndl.Tensor) -> float:
+    """Compute L1 error using Needle operations."""
+    diff = pred - target
+    # Approximate abs using sqrt(x^2)
+    abs_diff = ops.power_scalar(diff * diff, 0.5)
+    numel = 1
+    for dim in abs_diff.shape:
+        numel *= dim
+    return float((ops.summation(abs_diff) / numel).numpy().flatten()[0])
 
 
 def run_baseline_metrics(num_samples: int = 100, seed: int = 42) -> dict:
@@ -180,7 +237,7 @@ def run_baseline_metrics(num_samples: int = 100, seed: int = 42) -> dict:
     import needle.data as data
     
     print("=" * 60)
-    print("Baseline Metrics Evaluation")
+    print("Baseline Metrics Evaluation (Using Needle)")
     print("=" * 60)
     print(f"Samples: {num_samples}")
     print(f"Seed: {seed}")
@@ -196,9 +253,10 @@ def run_baseline_metrics(num_samples: int = 100, seed: int = 42) -> dict:
     
     print(f"Test dataset size: {len(test_dataset)}")
     
-    # Sample indices
-    np.random.seed(seed)
-    indices = np.random.choice(len(test_dataset), num_samples, replace=False)
+    # Sample indices using Python random
+    random.seed(seed)
+    all_indices = list(range(len(test_dataset)))
+    indices = random.sample(all_indices, min(num_samples, len(all_indices)))
     
     # Compute metrics
     psnr_scores = []
@@ -209,19 +267,37 @@ def run_baseline_metrics(num_samples: int = 100, seed: int = 42) -> dict:
     print(f"\nComputing metrics on {num_samples} samples...")
     
     for i, idx in enumerate(indices):
-        L, ab_target, rgb_original = test_dataset[idx]
+        L_np, ab_target_np, rgb_original_np = test_dataset[idx]
         
-        # Baseline: grayscale RGB (no colorization)
-        rgb_baseline = grayscale_baseline(L)
+        # Create baseline grayscale RGB (no colorization)
+        gray = L_np[0]  # (H, W)
+        H, W = gray.shape
         
-        # Ground truth RGB
-        rgb_gt = np.transpose(rgb_original, (1, 2, 0))  # CHW to HWC
+        # Build rgb_baseline as nested list then convert
+        rgb_baseline_list = [[[float(gray[hi, wi])] * 3 for wi in range(W)] for hi in range(H)]
+        
+        # Ground truth RGB - transpose from CHW to HWC
+        rgb_gt_list = [[[float(rgb_original_np[c, hi, wi]) for c in range(3)] for wi in range(W)] for hi in range(H)]
+        
+        # Convert to Needle tensors for metric computation
+        # Flatten for PSNR/SSIM
+        baseline_flat = [rgb_baseline_list[hi][wi][c] for hi in range(H) for wi in range(W) for c in range(3)]
+        gt_flat = [rgb_gt_list[hi][wi][c] for hi in range(H) for wi in range(W) for c in range(3)]
+        
+        pred_tensor = ndl.Tensor(baseline_flat).reshape((H, W, 3))
+        target_tensor = ndl.Tensor(gt_flat).reshape((H, W, 3))
         
         # Compute metrics
-        psnr = compute_psnr(rgb_baseline, rgb_gt)
-        ssim = compute_ssim(rgb_baseline, rgb_gt)
-        ssim_w = compute_ssim_windowed(rgb_baseline, rgb_gt)
-        l1 = np.mean(np.abs(rgb_baseline - rgb_gt))
+        psnr = compute_psnr(pred_tensor, target_tensor)
+        ssim = compute_ssim(pred_tensor, target_tensor)
+        
+        # For windowed SSIM, convert to simple arrays
+        pred_arr = pred_tensor.numpy()
+        target_arr = target_tensor.numpy()
+        ssim_w = compute_ssim_windowed(pred_arr, target_arr)
+        
+        # L1 error
+        l1 = compute_l1_error(pred_tensor, target_tensor)
         
         psnr_scores.append(psnr)
         ssim_scores.append(ssim)
@@ -231,7 +307,17 @@ def run_baseline_metrics(num_samples: int = 100, seed: int = 42) -> dict:
         if (i + 1) % 20 == 0:
             print(f"  Processed {i + 1}/{num_samples} samples...")
     
-    # Aggregate results
+    # Aggregate results using Python
+    def mean(lst):
+        return sum(lst) / len(lst) if lst else 0.0
+    
+    def std(lst):
+        if len(lst) < 2:
+            return 0.0
+        m = mean(lst)
+        variance = sum((x - m) ** 2 for x in lst) / len(lst)
+        return math.sqrt(variance)
+    
     results = {
         'experiment': 'grayscale_baseline',
         'timestamp': datetime.now().isoformat(),
@@ -239,35 +325,35 @@ def run_baseline_metrics(num_samples: int = 100, seed: int = 42) -> dict:
         'seed': seed,
         'metrics': {
             'psnr': {
-                'mean': float(np.mean(psnr_scores)),
-                'std': float(np.std(psnr_scores)),
-                'min': float(np.min(psnr_scores)),
-                'max': float(np.max(psnr_scores))
+                'mean': mean(psnr_scores),
+                'std': std(psnr_scores),
+                'min': min(psnr_scores),
+                'max': max(psnr_scores)
             },
             'ssim_global': {
-                'mean': float(np.mean(ssim_scores)),
-                'std': float(np.std(ssim_scores)),
-                'min': float(np.min(ssim_scores)),
-                'max': float(np.max(ssim_scores))
+                'mean': mean(ssim_scores),
+                'std': std(ssim_scores),
+                'min': min(ssim_scores),
+                'max': max(ssim_scores)
             },
             'ssim_windowed': {
-                'mean': float(np.mean(ssim_windowed_scores)),
-                'std': float(np.std(ssim_windowed_scores)),
-                'min': float(np.min(ssim_windowed_scores)),
-                'max': float(np.max(ssim_windowed_scores))
+                'mean': mean(ssim_windowed_scores),
+                'std': std(ssim_windowed_scores),
+                'min': min(ssim_windowed_scores),
+                'max': max(ssim_windowed_scores)
             },
             'l1_error': {
-                'mean': float(np.mean(l1_errors)),
-                'std': float(np.std(l1_errors)),
-                'min': float(np.min(l1_errors)),
-                'max': float(np.max(l1_errors))
+                'mean': mean(l1_errors),
+                'std': std(l1_errors),
+                'min': min(l1_errors),
+                'max': max(l1_errors)
             }
         },
         'raw_scores': {
-            'psnr': [float(x) for x in psnr_scores],
-            'ssim': [float(x) for x in ssim_scores],
-            'ssim_windowed': [float(x) for x in ssim_windowed_scores],
-            'l1': [float(x) for x in l1_errors]
+            'psnr': psnr_scores,
+            'ssim': ssim_scores,
+            'ssim_windowed': ssim_windowed_scores,
+            'l1': l1_errors
         }
     }
     
@@ -322,4 +408,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

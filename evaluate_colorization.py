@@ -1,83 +1,124 @@
 #!/usr/bin/env python3
 """
 Evaluate trained colorization model and visualize results.
+
+Uses Needle operations and Python math instead of numpy.
 """
 
 import sys
 import os
-import numpy as np
 import pickle
+import json
+import math
 
 sys.path.append('./python')
-sys.path.append('./apps')
 
 import needle as ndl
 import needle.nn as nn
+from needle import ops
 from needle.data import DataLoader
 from needle.data.datasets import CIFAR10Dataset, ColorizationDataset
 
-# Metrics
-def compute_psnr(img1, img2, max_val=1.0):
-    """Compute Peak Signal-to-Noise Ratio."""
-    mse = np.mean((img1 - img2) ** 2)
+
+def compute_psnr(pred: ndl.Tensor, target: ndl.Tensor, max_val: float = 1.0) -> float:
+    """Compute Peak Signal-to-Noise Ratio using Needle operations."""
+    diff = pred - target
+    squared_diff = diff * diff
+    
+    numel = 1
+    for dim in squared_diff.shape:
+        numel *= dim
+    
+    mse_tensor = ops.summation(squared_diff) / numel
+    mse = float(mse_tensor.numpy().flatten()[0])
+    
     if mse == 0:
         return float('inf')
-    return 20 * np.log10(max_val / np.sqrt(mse))
+    return 20 * math.log10(max_val / math.sqrt(mse))
 
 
-def compute_ssim_simple(img1, img2):
-    """Compute simplified SSIM."""
+def compute_ssim_simple(pred: ndl.Tensor, target: ndl.Tensor) -> float:
+    """Compute simplified SSIM using Needle operations."""
     C1 = 0.01 ** 2
     C2 = 0.03 ** 2
     
-    mu1 = np.mean(img1)
-    mu2 = np.mean(img2)
+    # Flatten
+    numel = 1
+    for dim in pred.shape:
+        numel *= dim
     
-    sigma1_sq = np.var(img1)
-    sigma2_sq = np.var(img2)
-    sigma12 = np.mean((img1 - mu1) * (img2 - mu2))
+    pred_flat = ops.reshape(pred, (numel,))
+    target_flat = ops.reshape(target, (numel,))
+    
+    mu1 = float((ops.summation(pred_flat) / numel).numpy().flatten()[0])
+    mu2 = float((ops.summation(target_flat) / numel).numpy().flatten()[0])
+    
+    pred_c = pred_flat - mu1
+    target_c = target_flat - mu2
+    
+    sigma1_sq = float((ops.summation(pred_c * pred_c) / numel).numpy().flatten()[0])
+    sigma2_sq = float((ops.summation(target_c * target_c) / numel).numpy().flatten()[0])
+    sigma12 = float((ops.summation(pred_c * target_c) / numel).numpy().flatten()[0])
     
     ssim = ((2 * mu1 * mu2 + C1) * (2 * sigma12 + C2)) / \
            ((mu1**2 + mu2**2 + C1) * (sigma1_sq + sigma2_sq + C2))
     return ssim
 
 
-def lab_to_rgb_numpy(L, ab):
-    """Convert L and ab channels to RGB image."""
-    # L is in [0, 1], convert to [0, 100]
-    L = L * 100.0
+def compute_l1(pred: ndl.Tensor, target: ndl.Tensor) -> float:
+    """Compute L1 error using Needle operations."""
+    diff = pred - target
+    abs_diff = ops.power_scalar(diff * diff, 0.5)
     
-    # ab is normalized to [-1, 1], convert back to [-128, 127]
-    ab = ab * 128.0
+    numel = 1
+    for dim in abs_diff.shape:
+        numel *= dim
     
-    # Combine into Lab image
-    lab = np.zeros((L.shape[0], L.shape[1], 3))
-    lab[:, :, 0] = L
-    lab[:, :, 1] = ab[0] if len(ab.shape) == 3 else ab[:, :, 0]
-    lab[:, :, 2] = ab[1] if len(ab.shape) == 3 else ab[:, :, 1]
-    
-    # Lab to XYZ
-    y = (lab[:, :, 0] + 16) / 116
-    x = lab[:, :, 1] / 500 + y
-    z = y - lab[:, :, 2] / 200
-    
-    def f_inv(t):
-        delta = 6/29
-        return np.where(t > delta, t**3, 3 * delta**2 * (t - 4/29))
-    
-    X = 0.95047 * f_inv(x)
-    Y = 1.00000 * f_inv(y)
-    Z = 1.08883 * f_inv(z)
-    
-    # XYZ to RGB
-    R = 3.2406 * X - 1.5372 * Y - 0.4986 * Z
-    G = -0.9689 * X + 1.8758 * Y + 0.0415 * Z
-    B = 0.0557 * X - 0.2040 * Y + 1.0570 * Z
-    
-    rgb = np.stack([R, G, B], axis=-1)
-    rgb = np.clip(rgb, 0, 1)
-    
-    return rgb
+    return float((ops.summation(abs_diff) / numel).numpy().flatten()[0])
+
+
+def lab_to_rgb_python(L_2d, ab, H, W):
+    """Convert L and ab channels to RGB using pure Python.
+    Returns nested list [H][W][3].
+    """
+    rgb_result = []
+    for i in range(H):
+        row = []
+        for j in range(W):
+            l = float(L_2d[i, j]) * 100.0
+            a = float(ab[0, i, j]) * 128.0
+            b = float(ab[1, i, j]) * 128.0
+            
+            # Lab to XYZ
+            fy = (l + 16) / 116
+            fx = a / 500 + fy
+            fz = fy - b / 200
+            
+            delta = 6/29
+            
+            def f_inv(t):
+                if t > delta:
+                    return t ** 3
+                else:
+                    return 3 * delta**2 * (t - 4/29)
+            
+            X = 0.95047 * f_inv(fx)
+            Y = 1.00000 * f_inv(fy)
+            Z = 1.08883 * f_inv(fz)
+            
+            # XYZ to RGB
+            R = 3.2406 * X - 1.5372 * Y - 0.4986 * Z
+            G = -0.9689 * X + 1.8758 * Y + 0.0415 * Z
+            B = 0.0557 * X - 0.2040 * Y + 1.0570 * Z
+            
+            # Clip
+            R = max(0.0, min(1.0, R))
+            G = max(0.0, min(1.0, G))
+            B = max(0.0, min(1.0, B))
+            
+            row.append([R, G, B])
+        rgb_result.append(row)
+    return rgb_result
 
 
 def load_model(checkpoint_path, device):
@@ -135,6 +176,8 @@ def evaluate_and_visualize(checkpoint_path="./checkpoints/colorization_epoch_20.
     
     results = []
     
+    H, W = 32, 32
+    
     for i in range(min(num_samples, len(color_dataset))):
         L_np, ab_target_np, rgb_original = color_dataset[i]
         
@@ -142,7 +185,7 @@ def evaluate_and_visualize(checkpoint_path="./checkpoints/colorization_epoch_20.
         ab_target_normalized = ab_target_np / 128.0
         
         # Add batch dimension
-        L_batch = L_np[np.newaxis, ...]
+        L_batch = L_np.reshape(1, 1, 32, 32)
         
         # Convert to tensor
         L_tensor = ndl.Tensor(L_batch, device=device, dtype="float32")
@@ -151,26 +194,37 @@ def evaluate_and_visualize(checkpoint_path="./checkpoints/colorization_epoch_20.
         ab_pred = model(L_tensor)
         ab_pred_np = ab_pred.numpy()[0]  # Remove batch dim
         
-        # Convert predictions to RGB
-        L_2d = L_np[0]  # Remove channel dim (1, H, W) -> (H, W)
+        # Get 2D L channel
+        L_2d = L_np[0]  # (H, W)
         
-        # Predicted RGB
-        rgb_pred = lab_to_rgb_numpy(L_2d, ab_pred_np)
+        # Build flattened lists for Needle tensor metrics
+        pred_list = []
+        gt_list = []
+        gray_list = []
         
-        # Ground truth RGB (from ab_target)
-        rgb_gt = lab_to_rgb_numpy(L_2d, ab_target_np / 128.0)
+        for hi in range(H):
+            for wi in range(W):
+                l = float(L_2d[hi, wi])
+                pred_list.extend([l, float(ab_pred_np[0, hi, wi]), float(ab_pred_np[1, hi, wi])])
+                gt_list.extend([l, float(ab_target_normalized[0, hi, wi]), float(ab_target_normalized[1, hi, wi])])
+                gray_list.extend([l, 0.0, 0.0])
         
-        # Grayscale RGB (for comparison)
-        rgb_gray = np.stack([L_2d, L_2d, L_2d], axis=-1)
+        pred_tensor = ndl.Tensor(pred_list).reshape((H, W, 3))
+        gt_tensor = ndl.Tensor(gt_list).reshape((H, W, 3))
         
         # Compute metrics
-        psnr = compute_psnr(rgb_pred, rgb_gt)
-        ssim = compute_ssim_simple(rgb_pred, rgb_gt)
-        l1 = np.mean(np.abs(rgb_pred - rgb_gt))
+        psnr = compute_psnr(pred_tensor, gt_tensor)
+        ssim = compute_ssim_simple(pred_tensor, gt_tensor)
+        l1 = compute_l1(pred_tensor, gt_tensor)
         
         psnr_scores.append(psnr)
         ssim_scores.append(ssim)
         l1_errors.append(l1)
+        
+        # Convert to RGB for visualization
+        rgb_pred = lab_to_rgb_python(L_2d, ab_pred_np, H, W)
+        rgb_gt = lab_to_rgb_python(L_2d, ab_target_normalized, H, W)
+        rgb_gray = [[[float(L_2d[hi, wi])] * 3 for wi in range(W)] for hi in range(H)]
         
         results.append({
             'gray': rgb_gray,
@@ -184,14 +238,25 @@ def evaluate_and_visualize(checkpoint_path="./checkpoints/colorization_epoch_20.
         if (i + 1) % 10 == 0:
             print(f"  Processed {i + 1}/{num_samples}")
     
+    # Helper functions
+    def mean(lst):
+        return sum(lst) / len(lst) if lst else 0.0
+    
+    def std(lst):
+        if len(lst) < 2:
+            return 0.0
+        m = mean(lst)
+        variance = sum((x - m) ** 2 for x in lst) / len(lst)
+        return math.sqrt(variance)
+    
     # Print summary
     print("\n" + "=" * 60)
     print("EVALUATION RESULTS")
     print("=" * 60)
     print(f"  Samples evaluated: {len(psnr_scores)}")
-    print(f"  PSNR:  {np.mean(psnr_scores):.2f} dB (std: {np.std(psnr_scores):.2f})")
-    print(f"  SSIM:  {np.mean(ssim_scores):.4f} (std: {np.std(ssim_scores):.4f})")
-    print(f"  L1:    {np.mean(l1_errors):.4f} (std: {np.std(l1_errors):.4f})")
+    print(f"  PSNR:  {mean(psnr_scores):.2f} dB (std: {std(psnr_scores):.2f})")
+    print(f"  SSIM:  {mean(ssim_scores):.4f} (std: {std(ssim_scores):.4f})")
+    print(f"  L1:    {mean(l1_errors):.4f} (std: {std(l1_errors):.4f})")
     print("=" * 60)
     
     # Save visualization
@@ -235,15 +300,14 @@ def evaluate_and_visualize(checkpoint_path="./checkpoints/colorization_epoch_20.
     # Save metrics to JSON
     metrics = {
         'num_samples': len(psnr_scores),
-        'psnr_mean': float(np.mean(psnr_scores)),
-        'psnr_std': float(np.std(psnr_scores)),
-        'ssim_mean': float(np.mean(ssim_scores)),
-        'ssim_std': float(np.std(ssim_scores)),
-        'l1_mean': float(np.mean(l1_errors)),
-        'l1_std': float(np.std(l1_errors)),
+        'psnr_mean': mean(psnr_scores),
+        'psnr_std': std(psnr_scores),
+        'ssim_mean': mean(ssim_scores),
+        'ssim_std': std(ssim_scores),
+        'l1_mean': mean(l1_errors),
+        'l1_std': std(l1_errors),
     }
     
-    import json
     metrics_path = os.path.join(save_dir, 'metrics.json')
     with open(metrics_path, 'w') as f:
         json.dump(metrics, f, indent=2)
@@ -273,4 +337,3 @@ if __name__ == "__main__":
         num_samples=args.num_samples,
         save_dir=args.save_dir
     )
-

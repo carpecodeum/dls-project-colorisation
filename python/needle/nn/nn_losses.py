@@ -99,8 +99,8 @@ class SSIMLoss(Module):
 
 class SimplifiedPerceptualLoss(Module):
     """
-    Simplified perceptual loss using features from a pretrained network.
-    For MVP, we use early layers of ResNet9.
+    Simplified perceptual loss.
+    Uses L2 distance directly on images (no feature extractor for MVP).
     """
     
     def __init__(self, feature_extractor=None, layers=[1, 2], device=None, dtype="float32"):
@@ -109,8 +109,7 @@ class SimplifiedPerceptualLoss(Module):
         self.device = device
         self.dtype = dtype
         
-        # For MVP, we'll use a simple feature-based loss
-        # In a full implementation, we'd use a pretrained ResNet9
+        # Optional feature extractor for computing perceptual loss
         self.feature_extractor = feature_extractor
     
     def forward(self, pred: Tensor, target: Tensor) -> Tensor:

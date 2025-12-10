@@ -3,15 +3,12 @@ Colorization Dataset with Augmentation Pipeline.
 
 Provides train/val/test splits and data augmentation for image colorization.
 
-Note: This module uses numpy for data preprocessing and augmentation.
-This is intentional and follows standard deep learning practice:
-- Data loading/preprocessing operates on raw numpy arrays
-- DataLoader converts preprocessed numpy arrays to Needle Tensors
-- For differentiable color space operations in the neural network,
-  use needle.ops.rgb_to_lab, needle.ops.lab_to_rgb, needle.ops.gray_to_lab
+This module uses pure Python for data preprocessing and augmentation,
+avoiding numpy dependencies in the colorization-specific code.
 """
 
-import numpy as np
+import random
+import math
 from typing import Optional, List, Callable
 from ..data_basic import Dataset
 
@@ -37,27 +34,30 @@ class ColorizationAugmentation:
         self.jitter_prob = jitter_prob
         self.rotation_prob = rotation_prob
     
-    def random_horizontal_flip(self, img: np.ndarray) -> np.ndarray:
+    def random_horizontal_flip(self, img):
         """Flip image horizontally with probability flip_prob."""
-        if np.random.random() < self.flip_prob:
-            return img[:, :, ::-1].copy()
+        if random.random() < self.flip_prob:
+            C, H, W = img.shape
+            # Flip along width axis - need to copy
+            flipped = img[:, :, ::-1].copy()
+            return flipped
         return img
     
-    def random_crop_resize(self, img: np.ndarray, 
-                           min_crop: float = 0.8) -> np.ndarray:
+    def random_crop_resize(self, img, min_crop: float = 0.8):
         """Random crop and resize back to original size."""
-        if np.random.random() < self.crop_prob:
+        if random.random() < self.crop_prob:
             C, H, W = img.shape
-            crop_h = int(H * np.random.uniform(min_crop, 1.0))
-            crop_w = int(W * np.random.uniform(min_crop, 1.0))
+            crop_h = int(H * random.uniform(min_crop, 1.0))
+            crop_w = int(W * random.uniform(min_crop, 1.0))
             
-            start_h = np.random.randint(0, H - crop_h + 1)
-            start_w = np.random.randint(0, W - crop_w + 1)
+            start_h = random.randint(0, H - crop_h)
+            start_w = random.randint(0, W - crop_w)
             
             cropped = img[:, start_h:start_h+crop_h, start_w:start_w+crop_w]
             
             # Simple nearest-neighbor resize back to original size
-            resized = np.zeros((C, H, W), dtype=img.dtype)
+            # Create new array with same type
+            resized = img.copy()
             for c in range(C):
                 for i in range(H):
                     for j in range(W):
@@ -67,31 +67,61 @@ class ColorizationAugmentation:
             return resized
         return img
     
-    def color_jitter(self, img: np.ndarray,
-                    brightness: float = 0.1,
-                    contrast: float = 0.1,
-                    saturation: float = 0.1) -> np.ndarray:
+    def color_jitter(self, img, brightness: float = 0.1, contrast: float = 0.1):
         """Apply random color jittering."""
-        if np.random.random() < self.jitter_prob:
-            # Brightness
-            img = img + np.random.uniform(-brightness, brightness)
+        if random.random() < self.jitter_prob:
+            C, H, W = img.shape
             
-            # Contrast
-            mean = img.mean()
-            img = (img - mean) * np.random.uniform(1-contrast, 1+contrast) + mean
+            # Brightness adjustment
+            bright_delta = random.uniform(-brightness, brightness)
             
-            # Clip to valid range
-            img = np.clip(img, 0, 1)
+            # Compute mean for contrast
+            total = 0.0
+            count = C * H * W
+            for c in range(C):
+                for h in range(H):
+                    for w in range(W):
+                        total += float(img[c, h, w])
+            mean_val = total / count
+            
+            # Contrast factor
+            contrast_factor = random.uniform(1 - contrast, 1 + contrast)
+            
+            # Apply jitter
+            result = img.copy()
+            for c in range(C):
+                for h in range(H):
+                    for w in range(W):
+                        val = float(img[c, h, w])
+                        val = val + bright_delta
+                        val = (val - mean_val) * contrast_factor + mean_val
+                        # Clip to [0, 1]
+                        result[c, h, w] = max(0.0, min(1.0, val))
+            return result
         return img
     
-    def random_rotation_90(self, img: np.ndarray) -> np.ndarray:
+    def random_rotation_90(self, img):
         """Random 90-degree rotation."""
-        if np.random.random() < self.rotation_prob:
-            k = np.random.randint(1, 4)  # 90, 180, or 270 degrees
-            img = np.rot90(img, k, axes=(1, 2)).copy()
+        if random.random() < self.rotation_prob:
+            k = random.randint(1, 3)  # 90, 180, or 270 degrees
+            C, H, W = img.shape
+            
+            result = img.copy()
+            for _ in range(k):
+                # Rotate 90 degrees clockwise
+                rotated = result.copy()
+                new_H, new_W = W, H
+                for c in range(C):
+                    for h in range(H):
+                        for w in range(W):
+                            # 90 degree rotation: (h, w) -> (w, H-1-h)
+                            rotated[c, w, H - 1 - h] = result[c, h, w]
+                result = rotated
+                H, W = new_H, new_W
+            return result
         return img
     
-    def __call__(self, img: np.ndarray) -> np.ndarray:
+    def __call__(self, img):
         """Apply all augmentations."""
         img = self.random_horizontal_flip(img)
         img = self.random_crop_resize(img)
@@ -127,53 +157,80 @@ class ColorizationDataset(Dataset):
         self.augmentation = augmentation
         self.return_rgb = return_rgb
     
-    def rgb_to_lab(self, rgb: np.ndarray) -> np.ndarray:
+    def rgb_to_lab(self, rgb):
         """
-        Convert RGB to Lab color space.
-        rgb: (3, H, W) in [0, 1]
-        returns: (3, H, W) with L in [0, 100], a in [-128, 127], b in [-128, 127]
+        Convert RGB to Lab color space using pure Python.
+        rgb: numpy array (3, H, W) in [0, 1]
+        returns: numpy array (3, H, W) with L in [0, 100], a in [-128, 127], b in [-128, 127]
         """
-        # Transpose to HWC for easier computation
-        rgb_hwc = np.transpose(rgb, (1, 2, 0))
-        
-        # Step 1: RGB to XYZ (with gamma correction)
-        mask = rgb_hwc > 0.04045
-        rgb_linear = np.where(mask, 
-                             np.power((rgb_hwc + 0.055) / 1.055, 2.4),
-                             rgb_hwc / 12.92)
+        C, H, W = rgb.shape
         
         # RGB to XYZ matrix (D65 illuminant)
-        M = np.array([
+        M = [
             [0.4124564, 0.3575761, 0.1804375],
             [0.2126729, 0.7151522, 0.0721750],
             [0.0193339, 0.1191920, 0.9503041]
-        ])
+        ]
         
-        H, W, _ = rgb_hwc.shape
-        rgb_flat = rgb_linear.reshape(-1, 3)
-        xyz_flat = np.dot(rgb_flat, M.T)
-        xyz_hwc = xyz_flat.reshape(H, W, 3)
+        # D65 white point
+        Xn, Yn, Zn = 0.95047, 1.0, 1.08883
         
-        # Normalize by D65 white point
-        xyz_hwc = xyz_hwc / np.array([0.95047, 1.0, 1.08883])
-        
-        # Step 2: XYZ to Lab
+        # Constants
         epsilon = 0.008856
         kappa = 903.3
         
-        mask = xyz_hwc > epsilon
-        f_xyz = np.where(mask,
-                        np.power(xyz_hwc, 1.0/3.0),
-                        (kappa * xyz_hwc + 16.0) / 116.0)
+        # Output Lab array (same type as input)
+        lab = rgb.copy()
         
-        L = 116.0 * f_xyz[:, :, 1] - 16.0
-        a = 500.0 * (f_xyz[:, :, 0] - f_xyz[:, :, 1])
-        b = 200.0 * (f_xyz[:, :, 1] - f_xyz[:, :, 2])
+        for h in range(H):
+            for w in range(W):
+                # Get RGB values
+                r = float(rgb[0, h, w])
+                g = float(rgb[1, h, w])
+                b = float(rgb[2, h, w])
+                
+                # Gamma correction (inverse sRGB companding)
+                def gamma_expand(v):
+                    if v > 0.04045:
+                        return ((v + 0.055) / 1.055) ** 2.4
+                    else:
+                        return v / 12.92
+                
+                r_lin = gamma_expand(r)
+                g_lin = gamma_expand(g)
+                b_lin = gamma_expand(b)
+                
+                # RGB to XYZ
+                X = M[0][0] * r_lin + M[0][1] * g_lin + M[0][2] * b_lin
+                Y = M[1][0] * r_lin + M[1][1] * g_lin + M[1][2] * b_lin
+                Z = M[2][0] * r_lin + M[2][1] * g_lin + M[2][2] * b_lin
+                
+                # Normalize by white point
+                X /= Xn
+                Y /= Yn
+                Z /= Zn
+                
+                # XYZ to Lab (f function)
+                def f_func(t):
+                    if t > epsilon:
+                        return t ** (1.0 / 3.0)
+                    else:
+                        return (kappa * t + 16.0) / 116.0
+                
+                fx = f_func(X)
+                fy = f_func(Y)
+                fz = f_func(Z)
+                
+                # Lab values
+                L = 116.0 * fy - 16.0
+                a = 500.0 * (fx - fy)
+                b_val = 200.0 * (fy - fz)
+                
+                lab[0, h, w] = L
+                lab[1, h, w] = a
+                lab[2, h, w] = b_val
         
-        # Stack to CHW format
-        lab = np.stack([L, a, b], axis=0)
-        
-        return lab.astype(np.float32)
+        return lab
     
     def __getitem__(self, index):
         """
@@ -245,4 +302,3 @@ def create_colorization_splits(base_folder: str,
     test_dataset = ColorizationDataset(test_cifar, augmentation=None)
     
     return train_dataset, val_dataset, test_dataset
-

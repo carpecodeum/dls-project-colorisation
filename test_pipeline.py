@@ -5,7 +5,6 @@ sys.path.append('./python')
 
 import needle as ndl
 import needle.nn as nn
-import numpy as np
 
 print("=" * 80)
 print("Testing Image Colorization Pipeline")
@@ -47,7 +46,9 @@ except Exception as e:
 # Test 4: Forward pass
 print("\n4. Testing forward pass...")
 try:
-    gray_tensor = ndl.Tensor(gray.reshape(1, 1, 32, 32), device=device, dtype=dtype)
+    # Reshape gray to batch format - gray is already a numpy array from dataset
+    gray_reshaped = gray.reshape(1, 1, 32, 32)
+    gray_tensor = ndl.Tensor(gray_reshaped, device=device, dtype=dtype)
     ab_pred = model.predict_ab(gray_tensor)
     assert ab_pred.shape == (1, 2, 32, 32), f"Expected output shape (1, 2, 32, 32), got {ab_pred.shape}"
     print(f"   ✓ Forward pass successful: output shape {ab_pred.shape}")
@@ -60,7 +61,8 @@ except Exception as e:
 # Test 5: Loss functions
 print("\n5. Testing loss functions...")
 try:
-    ab_target = ndl.Tensor(ab.reshape(1, 2, 32, 32), device=device, dtype=dtype)
+    ab_reshaped = ab.reshape(1, 2, 32, 32)
+    ab_target = ndl.Tensor(ab_reshaped, device=device, dtype=dtype)
     
     # L1 Loss
     l1_loss = nn.L1Loss()
@@ -119,9 +121,13 @@ try:
     
     # Get one batch
     batch = next(iter(dataloader))
-    gray_batch_np, ab_batch_np = batch
+    gray_batch_tensor, ab_batch_tensor = batch
     
-    # Convert to Tensors
+    # Get numpy arrays for tensor creation
+    gray_batch_np = gray_batch_tensor.numpy() if hasattr(gray_batch_tensor, 'numpy') else gray_batch_tensor
+    ab_batch_np = ab_batch_tensor.numpy() if hasattr(ab_batch_tensor, 'numpy') else ab_batch_tensor
+    
+    # Convert to Tensors on target device
     gray_batch = ndl.Tensor(gray_batch_np, device=device, dtype=dtype)
     ab_batch = ndl.Tensor(ab_batch_np, device=device, dtype=dtype)
     

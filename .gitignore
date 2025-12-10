@@ -1,0 +1,47 @@
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+*.o
+*.so
+*.a
+*.out
+
+# CMake-generated files
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+cmake_install.cmake
+
+# Project data & outputs
+/data/
+checkpoints/
+tmp/
+tmp.*
+*.pkl
+*.pt
+*.pth
+*.ckpt
+
+# Notebooks & IDE
+.ipynb_checkpoints/
+.vscode/
+.DS_Store
+
+# Python environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pyvenv.cfg

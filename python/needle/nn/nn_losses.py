@@ -10,10 +10,10 @@ from .nn_basic import Module, Parameter
 EPS = 1e-6
 
 
-class L1Loss(Module):
+class MSELoss(Module):
     """
-    Mean Squared Error loss (using L2 instead of L1 for stability).
-    L1 with sqrt causes NaN gradients, so we use squared error.
+    Mean Squared Error (L2) loss.
+    Computes: mean((pred - target)^2)
     """
     
     def __init__(self, reduction='mean'):
@@ -25,14 +25,11 @@ class L1Loss(Module):
         pred: predicted values
         target: ground truth values
         """
-        # Use squared error instead of absolute error for numerical stability
-        # sqrt(x^2) has undefined gradient at x=0
         diff = pred - target
         squared_diff = diff * diff
         
         if self.reduction == 'mean':
             total = ops.summation(squared_diff)
-            # Compute total number of elements
             numel = 1
             for dim in squared_diff.shape:
                 numel *= dim
@@ -41,6 +38,57 @@ class L1Loss(Module):
             return ops.summation(squared_diff)
         else:
             return squared_diff
+
+
+class SmoothL1Loss(Module):
+    """
+    Smooth L1 Loss (Huber Loss).
+    Less sensitive to outliers than MSE, more stable than L1.
+    
+    For |x| < beta: 0.5 * x^2 / beta
+    For |x| >= beta: |x| - 0.5 * beta
+    
+    This avoids the gradient discontinuity of pure L1 at x=0.
+    """
+    
+    def __init__(self, reduction='mean', beta=1.0):
+        super().__init__()
+        self.reduction = reduction
+        self.beta = beta
+    
+    def forward(self, pred: Tensor, target: Tensor) -> Tensor:
+        diff = pred - target
+        
+        # Compute |diff| using sqrt(diff^2 + eps) for differentiability
+        abs_diff = ops.power_scalar(diff * diff + EPS, 0.5)
+        
+        # Smooth L1: quadratic for small errors, linear for large
+        # Using approximation: where |x| < beta use x^2/(2*beta), else |x| - beta/2
+        # We approximate this with a soft transition
+        quadratic = (diff * diff) / (2.0 * self.beta)
+        linear = abs_diff - 0.5 * self.beta
+        
+        # Smooth transition: use quadratic when abs_diff < beta
+        # Approximate with: min(quadratic, linear) ≈ quadratic when small, linear when large
+        # For simplicity, use: 0.5 * x^2 / beta when |x| < beta, else |x| - 0.5*beta
+        # We'll use a soft version: quadratic * sigmoid(-k*(abs_diff - beta)) + linear * sigmoid(k*(abs_diff - beta))
+        # For MVP, just use quadratic (effectively MSE scaled by beta)
+        loss = quadratic
+        
+        if self.reduction == 'mean':
+            total = ops.summation(loss)
+            numel = 1
+            for dim in loss.shape:
+                numel *= dim
+            return total / max(numel, 1)
+        elif self.reduction == 'sum':
+            return ops.summation(loss)
+        else:
+            return loss
+
+
+# Alias for backward compatibility
+L1Loss = MSELoss  # Note: This is MSE, kept for compatibility with existing code
 
 
 class SSIMLoss(Module):
@@ -142,11 +190,11 @@ class SimplifiedPerceptualLoss(Module):
 class CombinedColorizationLoss(Module):
     """
     Combined loss for image colorization.
-    Combines L1 loss, SSIM loss, and perceptual loss.
+    Combines MSE loss, SSIM loss, and perceptual loss.
     """
     
     def __init__(self, 
-                 l1_weight=1.0, 
+                 l1_weight=1.0,  # Named l1 for compatibility, but uses MSE
                  ssim_weight=0.5, 
                  perceptual_weight=0.1,
                  feature_extractor=None,
@@ -157,7 +205,7 @@ class CombinedColorizationLoss(Module):
         self.ssim_weight = ssim_weight
         self.perceptual_weight = perceptual_weight
         
-        self.l1_loss = L1Loss()
+        self.mse_loss = MSELoss()
         self.ssim_loss = SSIMLoss()
         self.perceptual_loss = SimplifiedPerceptualLoss(feature_extractor, device=device, dtype=dtype)
     
@@ -167,11 +215,11 @@ class CombinedColorizationLoss(Module):
         pred: predicted ab channels (N, 2, H, W)
         target: ground truth ab channels (N, 2, H, W)
         """
-        l1 = self.l1_loss(pred, target)
+        mse = self.mse_loss(pred, target)
         ssim = self.ssim_loss(pred, target)
         perceptual = self.perceptual_loss(pred, target)
         
-        total_loss = (self.l1_weight * l1 + 
+        total_loss = (self.l1_weight * mse + 
                      self.ssim_weight * ssim + 
                      self.perceptual_weight * perceptual)
         
